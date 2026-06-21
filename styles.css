@@ -498,24 +498,28 @@ input[type="file"] {
 }
 
 .photo-card {
-  flex: 0 0 clamp(190px, 22vw, 230px);
+  flex: 0 0 var(--photo-card-width, clamp(190px, 22vw, 230px));
   display: grid;
   grid-template-rows: auto minmax(58px, auto);
   scroll-snap-align: start;
 }
 
 .photo-card button.preview-button {
+  display: grid;
+  place-items: center;
   width: 100%;
-  aspect-ratio: 4 / 5;
-  padding: 0;
-  background: transparent;
+  height: clamp(190px, 24vw, 280px);
+  padding: 8px;
+  overflow: hidden;
+  background: var(--surface-soft);
   cursor: zoom-in;
 }
 
 .photo-card img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  border-radius: calc(var(--radius) - 2px);
+  object-fit: contain;
 }
 
 .video-card video {
@@ -799,7 +803,11 @@ textarea {
   }
 
   .photo-card {
-    flex-basis: min(78vw, 260px);
+    flex-basis: min(78vw, max(210px, var(--photo-card-width, 260px)));
+  }
+
+  .photo-card button.preview-button {
+    height: clamp(210px, 66vw, 300px);
   }
 
   .action-button {

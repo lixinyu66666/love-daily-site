@@ -896,6 +896,7 @@
       photos.forEach((photo) => {
         const card = document.createElement("article");
         card.className = "media-card photo-card";
+        applyPhotoCardSizing(card, photo);
         card.innerHTML = `
           <button class="preview-button" type="button" aria-label="预览 ${escapeHtml(
             photo.name
@@ -941,6 +942,29 @@
       );
       setStatus(elements.photoStatus, "照片加载失败，请检查 Supabase 设置。", true);
     }
+  }
+
+  function applyPhotoCardSizing(card, photo) {
+    const width = Number(photo.width);
+    const height = Number(photo.height);
+
+    if (
+      !Number.isFinite(width) ||
+      !Number.isFinite(height) ||
+      width <= 0 ||
+      height <= 0
+    ) {
+      return;
+    }
+
+    const ratio = width / height;
+    const visibleRatio = clampValue(ratio, 0.68, 1.55);
+    const cardWidth = Math.round(clampValue(230 * visibleRatio, 190, 330));
+    card.style.setProperty("--photo-card-width", `${cardWidth}px`);
+  }
+
+  function clampValue(value, min, max) {
+    return Math.min(max, Math.max(min, value));
   }
 
   function attachDisplayUrls(storeName, item) {
@@ -1112,21 +1136,32 @@
     }
 
     photoWallTimer = window.setInterval(() => {
-      const firstCard = elements.photoGallery.querySelector(".photo-card");
-      if (!firstCard || elements.photoGallery.scrollWidth <= elements.photoGallery.clientWidth) {
+      const cards = Array.from(
+        elements.photoGallery.querySelectorAll(".photo-card")
+      );
+      if (
+        !cards.length ||
+        elements.photoGallery.scrollWidth <= elements.photoGallery.clientWidth
+      ) {
         stopPhotoWallAutoplay();
         return;
       }
 
-      const cardWidth = firstCard.getBoundingClientRect().width;
-      const nextLeft =
-        elements.photoGallery.scrollLeft + cardWidth + 14 >=
-        elements.photoGallery.scrollWidth - elements.photoGallery.clientWidth
-          ? 0
-          : elements.photoGallery.scrollLeft + cardWidth + 14;
+      const galleryLeft = elements.photoGallery.getBoundingClientRect().left;
+      const currentLeft = elements.photoGallery.scrollLeft;
+      const maxLeft =
+        elements.photoGallery.scrollWidth - elements.photoGallery.clientWidth;
+      const nextCard = cards.find((card) => {
+        const cardLeft =
+          card.getBoundingClientRect().left - galleryLeft + currentLeft;
+        return cardLeft > currentLeft + 8;
+      });
+      const nextLeft = nextCard
+        ? nextCard.getBoundingClientRect().left - galleryLeft + currentLeft
+        : 0;
 
       elements.photoGallery.scrollTo({
-        left: nextLeft,
+        left: Math.min(nextLeft, maxLeft),
         behavior: "smooth",
       });
     }, 3600);
