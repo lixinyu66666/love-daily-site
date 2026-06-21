@@ -459,17 +459,33 @@ input[type="file"] {
   pointer-events: none;
 }
 
-.gallery-grid,
+.gallery-grid {
+  display: flex;
+  gap: 14px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  padding: 2px 2px 12px;
+  scroll-padding-inline: 2px;
+  scroll-snap-type: x mandatory;
+}
+
+.gallery-grid::-webkit-scrollbar {
+  height: 8px;
+}
+
+.gallery-grid::-webkit-scrollbar-track {
+  border-radius: 999px;
+  background: var(--surface-soft);
+}
+
+.gallery-grid::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--green) 58%, #fff);
+}
+
 .video-grid {
   display: grid;
   gap: 14px;
-}
-
-.gallery-grid {
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-}
-
-.video-grid {
   grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
 }
 
@@ -482,8 +498,10 @@ input[type="file"] {
 }
 
 .photo-card {
+  flex: 0 0 clamp(190px, 22vw, 230px);
   display: grid;
   grid-template-rows: auto minmax(58px, auto);
+  scroll-snap-align: start;
 }
 
 .photo-card button.preview-button {
@@ -508,10 +526,8 @@ input[type="file"] {
 }
 
 .media-meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  display: grid;
+  gap: 9px;
   padding: 10px;
 }
 
@@ -536,14 +552,18 @@ input[type="file"] {
   font-size: 0.78rem;
 }
 
+.media-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
 .delete-media {
-  flex: 0 0 auto;
-  width: 34px;
-  height: 34px;
+  min-height: 32px;
   border: 1px solid #efc8bd;
+  padding: 6px 11px;
   background: #fff7f4;
   color: #9a4938;
-  font-size: 1.1rem;
+  font-size: 0.82rem;
 }
 
 .note-form {
@@ -625,6 +645,14 @@ textarea {
   gap: 12px;
 }
 
+.note-top > div {
+  min-width: 0;
+}
+
+.note-top h3 {
+  overflow-wrap: anywhere;
+}
+
 .note-chip {
   display: inline-flex;
   align-items: center;
@@ -652,6 +680,7 @@ textarea {
 
 .empty-state {
   display: grid;
+  flex: 1 0 100%;
   min-height: 170px;
   place-items: center;
   border: 1px dashed #cad8cf;
@@ -761,9 +790,16 @@ textarea {
     font-size: 2.05rem;
   }
 
-  .gallery-grid,
   .video-grid {
     grid-template-columns: 1fr;
+  }
+
+  .gallery-grid {
+    margin-inline: -2px;
+  }
+
+  .photo-card {
+    flex-basis: min(78vw, 260px);
   }
 
   .action-button {

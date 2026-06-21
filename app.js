@@ -74,6 +74,7 @@
   let appStarted = false;
   let coverTimer = null;
   let coverIndex = 0;
+  let photoWallTimer = null;
   const objectUrls = {
     photos: new Set(),
     videos: new Set(),
@@ -381,6 +382,10 @@
       handleMediaInput(elements.videoInput, STORES.videos)
     );
     elements.noteForm.addEventListener("submit", handleNoteSubmit);
+    elements.photoGallery.addEventListener("mouseenter", stopPhotoWallAutoplay);
+    elements.photoGallery.addEventListener("mouseleave", startPhotoWallAutoplay);
+    elements.photoGallery.addEventListener("focusin", stopPhotoWallAutoplay);
+    elements.photoGallery.addEventListener("focusout", startPhotoWallAutoplay);
     elements.closeLightbox.addEventListener("click", closeLightbox);
     elements.lightbox.addEventListener("click", (event) => {
       if (event.target === elements.lightbox) {
@@ -873,14 +878,13 @@
 
   async function renderPhotos() {
     clearObjectUrls(STORES.photos);
+    stopPhotoWallAutoplay();
     elements.photoGallery.innerHTML = "";
 
     try {
       const photos = (await getAllMedia(STORES.photos)).map((photo) =>
         attachDisplayUrls(STORES.photos, photo)
       );
-
-      renderCoverSlideshow(photos);
 
       if (!photos.length) {
         elements.photoGallery.appendChild(
@@ -907,9 +911,9 @@
                 photo.createdAt
               )}</small>
             </span>
-            <button class="icon-button delete-media" type="button" aria-label="删除 ${escapeHtml(
-              photo.name
-            )}">×</button>
+            <div class="media-actions">
+              <button class="action-button danger delete-media" type="button">删除</button>
+            </div>
           </div>
         `;
 
@@ -917,14 +921,21 @@
           openLightbox(photo.url, photo.name);
         });
         card.querySelector(".delete-media").addEventListener("click", async () => {
-          await deleteMedia(STORES.photos, photo);
-          await renderPhotos();
+          await handleDeleteMedia({
+            storeName: STORES.photos,
+            item: photo,
+            label: "照片",
+            statusElement: elements.photoStatus,
+            renderAfterDelete: renderPhotos,
+            button: card.querySelector(".delete-media"),
+          });
         });
         elements.photoGallery.appendChild(card);
       });
+
+      startPhotoWallAutoplay();
     } catch (error) {
       console.error(error);
-      renderCoverSlideshow([]);
       elements.photoGallery.appendChild(
         createEmptyState("照片暂时加载失败，请检查云端配置。")
       );
@@ -1037,14 +1048,20 @@
                 video.createdAt
               )}</small>
             </span>
-            <button class="icon-button delete-media" type="button" aria-label="删除 ${escapeHtml(
-              video.name
-            )}">×</button>
+            <div class="media-actions">
+              <button class="action-button danger delete-media" type="button">删除</button>
+            </div>
           </div>
         `;
         card.querySelector(".delete-media").addEventListener("click", async () => {
-          await deleteMedia(STORES.videos, video);
-          await renderVideos();
+          await handleDeleteMedia({
+            storeName: STORES.videos,
+            item: video,
+            label: "视频",
+            statusElement: elements.videoStatus,
+            renderAfterDelete: renderVideos,
+            button: card.querySelector(".delete-media"),
+          });
         });
         elements.videoGallery.appendChild(card);
       });
@@ -1054,6 +1071,71 @@
         createEmptyState("视频暂时加载失败，请检查云端配置。")
       );
       setStatus(elements.videoStatus, "视频加载失败，请检查 Supabase 设置。", true);
+    }
+  }
+
+  async function handleDeleteMedia({
+    storeName,
+    item,
+    label,
+    statusElement,
+    renderAfterDelete,
+    button,
+  }) {
+    if (!confirm(`确定删除这${label === "照片" ? "张" : "个"}${label}吗？`)) {
+      return;
+    }
+
+    const originalText = button.textContent;
+    button.disabled = true;
+    button.textContent = "删除中";
+    setStatus(statusElement, `正在删除${label}...`);
+
+    try {
+      await deleteMedia(storeName, item);
+      setStatus(statusElement, `已删除${label}。`);
+      await renderAfterDelete();
+      window.setTimeout(() => clearStatus(statusElement), 1600);
+    } catch (error) {
+      console.error(error);
+      button.disabled = false;
+      button.textContent = originalText;
+      setStatus(statusElement, `${label}删除失败，请稍后再试。`, true);
+    }
+  }
+
+  function startPhotoWallAutoplay() {
+    stopPhotoWallAutoplay();
+
+    if (!elements.photoGallery || elements.photoGallery.children.length <= 1) {
+      return;
+    }
+
+    photoWallTimer = window.setInterval(() => {
+      const firstCard = elements.photoGallery.querySelector(".photo-card");
+      if (!firstCard || elements.photoGallery.scrollWidth <= elements.photoGallery.clientWidth) {
+        stopPhotoWallAutoplay();
+        return;
+      }
+
+      const cardWidth = firstCard.getBoundingClientRect().width;
+      const nextLeft =
+        elements.photoGallery.scrollLeft + cardWidth + 14 >=
+        elements.photoGallery.scrollWidth - elements.photoGallery.clientWidth
+          ? 0
+          : elements.photoGallery.scrollLeft + cardWidth + 14;
+
+      elements.photoGallery.scrollTo({
+        left: nextLeft,
+        behavior: "smooth",
+      });
+    }, 3600);
+  }
+
+  function stopPhotoWallAutoplay() {
+    if (photoWallTimer) {
+      window.clearInterval(photoWallTimer);
+      photoWallTimer = null;
     }
   }
 
@@ -1226,8 +1308,7 @@
           <div class="note-meta">${formatTime(note.createdAt)}</div>
         `;
         card.querySelector("button").addEventListener("click", async () => {
-          await deleteNote(note.id);
-          await renderNotes();
+          await handleDeleteNote(note, card.querySelector("button"));
         });
         elements.noteList.appendChild(card);
       });
@@ -1237,6 +1318,29 @@
         createEmptyState("日志和留言暂时加载失败，请检查云端配置。")
       );
       setStatus(elements.formStatus, "加载失败，请检查 Supabase 设置。", true);
+    }
+  }
+
+  async function handleDeleteNote(note, button) {
+    if (!confirm("确定删除这条日志或留言吗？")) {
+      return;
+    }
+
+    const originalText = button.textContent;
+    button.disabled = true;
+    button.textContent = "删除中";
+    setStatus(elements.formStatus, "正在删除...");
+
+    try {
+      await deleteNote(note.id);
+      setStatus(elements.formStatus, "已删除。");
+      await renderNotes();
+      window.setTimeout(() => clearStatus(elements.formStatus), 1600);
+    } catch (error) {
+      console.error(error);
+      button.disabled = false;
+      button.textContent = originalText;
+      setStatus(elements.formStatus, "删除失败，请稍后再试。", true);
     }
   }
 
