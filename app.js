@@ -1,8 +1,12 @@
 (function () {
   const START_DATE = new Date(2022, 11, 10);
-  const PASSWORD_HASH =
+  const LOCAL_PASSWORD_HASH =
     "bf9df5a155fbd9ca3740da07a8b4875179181107c1687986c29bae3d24b49c50";
-  const AUTH_KEY = "ml99-authenticated";
+  const LOCAL_AUTH_KEY = "ml99-local-authenticated";
+  const AUTH_FAILS_KEY = "ml99-auth-fail-count";
+  const AUTH_LOCK_UNTIL_KEY = "ml99-auth-lock-until";
+  const AUTH_MAX_FAILS = 5;
+  const AUTH_LOCK_MS = 60 * 1000;
   const DB_NAME = "lq-love-daily";
   const DB_VERSION = 1;
   const STORES = {
@@ -10,12 +14,28 @@
     videos: "videos",
   };
   const NOTES_KEY = "lq-love-notes";
+  const MEDIA_TABLE = "ml99_media";
+  const NOTES_TABLE = "ml99_notes";
+  const SIGNED_URL_TTL_SECONDS = 12 * 60 * 60;
+  const SUPABASE_SDK_URL = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2";
+  const DEFAULT_CLOUD_CONFIG = {
+    url: "",
+    anonKey: "",
+    authEmail: "",
+    mediaBucket: "ml99-media",
+    maxVideoSizeMB: 45,
+    imageMaxEdge: 1800,
+    imageQuality: 0.82,
+    thumbMaxEdge: 520,
+    thumbQuality: 0.76,
+  };
 
   const elements = {
     authGate: document.querySelector("#authGate"),
     authForm: document.querySelector("#authForm"),
     authPassword: document.querySelector("#authPassword"),
     authError: document.querySelector("#authError"),
+    authSubmit: document.querySelector("#authSubmit"),
     appShell: document.querySelector("#appShell"),
     daysTogether: document.querySelector("#daysTogether"),
     daysToMilestone: document.querySelector("#daysToMilestone"),
@@ -25,6 +45,8 @@
     coverSlideTitle: document.querySelector("#coverSlideTitle"),
     photoInput: document.querySelector("#photoInput"),
     videoInput: document.querySelector("#videoInput"),
+    photoStatus: document.querySelector("#photoStatus"),
+    videoStatus: document.querySelector("#videoStatus"),
     photoGallery: document.querySelector("#photoGallery"),
     videoGallery: document.querySelector("#videoGallery"),
     noteForm: document.querySelector("#noteForm"),
@@ -41,6 +63,13 @@
     emptyTemplate: document.querySelector("#emptyTemplate"),
   };
 
+  const cloud = {
+    mode: "local",
+    client: null,
+    config: { ...DEFAULT_CLOUD_CONFIG },
+    initError: "",
+  };
+
   let dbPromise;
   let appStarted = false;
   let coverTimer = null;
@@ -50,36 +79,175 @@
     videos: new Set(),
   };
 
-  document.addEventListener("DOMContentLoaded", init);
+  document.addEventListener("DOMContentLoaded", () => {
+    init().catch((error) => {
+      console.error(error);
+      elements.authError.textContent = "初始化失败，请稍后重试。";
+    });
+  });
+
   window.addEventListener("beforeunload", () => {
     Object.values(objectUrls).forEach((urls) => {
       urls.forEach((url) => URL.revokeObjectURL(url));
     });
   });
 
-  function init() {
+  async function init() {
+    await setupCloudClient();
     bindAuthEvents();
-    if (isAuthenticated()) {
-      unlockSite();
-    } else {
-      elements.authPassword.focus();
+
+    if (await isAuthenticated()) {
+      await unlockSite();
+      return;
     }
+
+    elements.authPassword.focus();
   }
 
-  function bindAuthEvents() {
-    elements.authForm.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const inputHash = await sha256(elements.authPassword.value);
-      if (inputHash === PASSWORD_HASH) {
-        sessionStorage.setItem(AUTH_KEY, "true");
-        elements.authPassword.value = "";
-        unlockSite();
+  async function setupCloudClient() {
+    const config = normalizeCloudConfig(globalThis.ML99_SUPABASE_CONFIG);
+    cloud.config = config;
+
+    if (!isUsableCloudConfig(config)) {
+      cloud.mode = "local";
+      return;
+    }
+
+    cloud.mode = "cloud";
+
+    if (!globalThis.supabase || typeof globalThis.supabase.createClient !== "function") {
+      try {
+        await loadSupabaseSdk();
+      } catch (error) {
+        console.error(error);
+        cloud.initError = "云端组件没有加载完成，请刷新页面。";
+        return;
+      }
+    }
+
+    cloud.client = globalThis.supabase.createClient(config.url, config.anonKey, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: false,
+      },
+    });
+  }
+
+  function loadSupabaseSdk() {
+    return new Promise((resolve, reject) => {
+      if (globalThis.supabase && typeof globalThis.supabase.createClient === "function") {
+        resolve();
         return;
       }
 
-      elements.authError.textContent = "密码不正确。";
-      elements.authPassword.select();
+      const existingScript = document.querySelector(
+        `script[src="${SUPABASE_SDK_URL}"]`
+      );
+      if (existingScript) {
+        existingScript.addEventListener("load", () => resolve(), { once: true });
+        existingScript.addEventListener("error", reject, { once: true });
+        return;
+      }
+
+      const script = document.createElement("script");
+      script.src = SUPABASE_SDK_URL;
+      script.async = true;
+      script.onload = () => resolve();
+      script.onerror = reject;
+      document.head.appendChild(script);
     });
+  }
+
+  function normalizeCloudConfig(rawConfig) {
+    return {
+      ...DEFAULT_CLOUD_CONFIG,
+      ...(rawConfig || {}),
+    };
+  }
+
+  function isUsableCloudConfig(config) {
+    return Boolean(
+      config.url &&
+        config.anonKey &&
+        config.authEmail &&
+        !String(config.url).includes("YOUR_") &&
+        !String(config.anonKey).includes("YOUR_")
+    );
+  }
+
+  function isCloudMode() {
+    return cloud.mode === "cloud";
+  }
+
+  function bindAuthEvents() {
+    elements.authForm.addEventListener("submit", handleAuthSubmit);
+  }
+
+  async function handleAuthSubmit(event) {
+    event.preventDefault();
+
+    const lockSeconds = getAuthLockSeconds();
+    if (lockSeconds > 0) {
+      elements.authError.textContent = `尝试次数过多，请 ${lockSeconds} 秒后再试。`;
+      return;
+    }
+
+    const password = elements.authPassword.value;
+    if (!password) {
+      elements.authError.textContent = "请输入密码。";
+      elements.authPassword.focus();
+      return;
+    }
+
+    setAuthBusy(true);
+    elements.authError.textContent = "";
+
+    try {
+      if (isCloudMode()) {
+        await signInWithCloudPassword(password);
+      } else {
+        await signInWithLocalPassword(password);
+      }
+
+      clearAuthFailures();
+      elements.authPassword.value = "";
+      await unlockSite();
+    } catch (error) {
+      console.error(error);
+      const lockStarted = registerAuthFailure();
+      elements.authError.textContent = lockStarted
+        ? "密码不正确，已暂时锁定 60 秒。"
+        : getAuthErrorMessage(error);
+      elements.authPassword.select();
+    } finally {
+      if (!appStarted) {
+        setAuthBusy(false);
+      }
+    }
+  }
+
+  async function signInWithCloudPassword(password) {
+    if (!cloud.client) {
+      throw new Error(cloud.initError || "云端配置还没有完成。");
+    }
+
+    const { error } = await cloud.client.auth.signInWithPassword({
+      email: cloud.config.authEmail,
+      password,
+    });
+
+    if (error) {
+      throw error;
+    }
+  }
+
+  async function signInWithLocalPassword(password) {
+    const inputHash = await sha256(password);
+    if (inputHash !== LOCAL_PASSWORD_HASH) {
+      throw new Error("密码不正确。");
+    }
+    sessionStorage.setItem(LOCAL_AUTH_KEY, "true");
   }
 
   async function sha256(value) {
@@ -90,15 +258,89 @@
       .join("");
   }
 
-  function isAuthenticated() {
+  async function isAuthenticated() {
+    if (isCloudMode()) {
+      if (!cloud.client) {
+        return false;
+      }
+
+      const { data, error } = await cloud.client.auth.getSession();
+      if (error) {
+        console.error(error);
+        return false;
+      }
+      return Boolean(data.session);
+    }
+
     try {
-      return sessionStorage.getItem(AUTH_KEY) === "true";
+      return sessionStorage.getItem(LOCAL_AUTH_KEY) === "true";
     } catch (error) {
       return false;
     }
   }
 
-  function unlockSite() {
+  function registerAuthFailure() {
+    const failures = readNumber(AUTH_FAILS_KEY) + 1;
+    writeNumber(AUTH_FAILS_KEY, failures);
+
+    if (failures >= AUTH_MAX_FAILS) {
+      writeNumber(AUTH_LOCK_UNTIL_KEY, Date.now() + AUTH_LOCK_MS);
+      writeNumber(AUTH_FAILS_KEY, 0);
+      return true;
+    }
+
+    return false;
+  }
+
+  function clearAuthFailures() {
+    writeNumber(AUTH_FAILS_KEY, 0);
+    writeNumber(AUTH_LOCK_UNTIL_KEY, 0);
+  }
+
+  function getAuthLockSeconds() {
+    const lockUntil = readNumber(AUTH_LOCK_UNTIL_KEY);
+    const remaining = lockUntil - Date.now();
+    if (remaining <= 0) {
+      return 0;
+    }
+    return Math.ceil(remaining / 1000);
+  }
+
+  function readNumber(key) {
+    try {
+      return Number(localStorage.getItem(key)) || 0;
+    } catch (error) {
+      return 0;
+    }
+  }
+
+  function writeNumber(key, value) {
+    try {
+      localStorage.setItem(key, String(value));
+    } catch (error) {
+      // Ignore storage failures; auth will still rely on Supabase/local hash.
+    }
+  }
+
+  function getAuthErrorMessage(error) {
+    if (isCloudMode()) {
+      if (cloud.initError) {
+        return cloud.initError;
+      }
+      return "密码不正确，或云端暂时无法验证。";
+    }
+
+    return error.message || "密码不正确。";
+  }
+
+  function setAuthBusy(isBusy) {
+    elements.authSubmit.disabled = isBusy;
+    elements.authSubmit.querySelector(".button-label").textContent = isBusy
+      ? "验证中"
+      : "进入";
+  }
+
+  async function unlockSite() {
     if (appStarted) {
       return;
     }
@@ -110,9 +352,13 @@
     setDefaultCoverSource();
     renderRelationshipTimer();
     setInterval(renderRelationshipTimer, 60 * 60 * 1000);
-    dbPromise = openDatabase();
+
+    if (!isCloudMode()) {
+      dbPromise = openDatabase();
+    }
+
     bindEvents();
-    renderAll();
+    await renderAll();
   }
 
   function setDefaultCoverSource() {
@@ -215,33 +461,379 @@
       return;
     }
 
-    await Promise.all(
-      files.map((file) =>
-        addMedia(storeName, {
-          blob: file,
-          name: file.name || "未命名文件",
-          type: file.type,
-          size: file.size,
-          createdAt: Date.now(),
-        })
-      )
-    );
+    const statusElement = getMediaStatusElement(storeName);
+    const label = input.closest(".action-button");
+    const isPhotos = storeName === STORES.photos;
+    const actionText = isPhotos ? "正在压缩并保存照片" : "正在保存视频";
+
+    input.disabled = true;
+    label?.classList.add("is-busy");
+    setStatus(statusElement, `${actionText} 1 / ${files.length}...`);
+
+    let savedCount = 0;
+    let failedCount = 0;
+
+    for (const [index, file] of files.entries()) {
+      setStatus(statusElement, `${actionText} ${index + 1} / ${files.length}...`);
+      try {
+        await addMedia(storeName, file);
+        savedCount += 1;
+      } catch (error) {
+        failedCount += 1;
+        console.error(error);
+      }
+    }
+
+    input.disabled = false;
+    label?.classList.remove("is-busy");
+
+    if (savedCount) {
+      setStatus(
+        statusElement,
+        failedCount
+          ? `已保存 ${savedCount} 个，${failedCount} 个失败。`
+          : `已保存 ${savedCount} 个。`
+      );
+    } else {
+      setStatus(statusElement, getMediaSaveError(storeName), true);
+    }
 
     if (storeName === STORES.photos) {
       await renderPhotos();
     } else {
       await renderVideos();
     }
+
+    window.setTimeout(() => {
+      clearStatus(statusElement);
+    }, 2400);
   }
 
-  async function addMedia(storeName, item) {
+  function getMediaStatusElement(storeName) {
+    return storeName === STORES.photos ? elements.photoStatus : elements.videoStatus;
+  }
+
+  function getMediaSaveError(storeName) {
+    if (storeName === STORES.videos) {
+      return `保存失败，请确认视频不超过 ${getMaxVideoSizeMB()} MB。`;
+    }
+    return "保存失败，请换一张浏览器可读取的照片。";
+  }
+
+  async function addMedia(storeName, file) {
+    if (storeName === STORES.photos) {
+      return addPhoto(file);
+    }
+    return addVideo(file);
+  }
+
+  async function addPhoto(file) {
+    const imageSet = await compressImage(file);
+
+    if (isCloudMode()) {
+      return addCloudPhoto(file, imageSet);
+    }
+
+    return addLocalMedia(STORES.photos, {
+      blob: imageSet.photoBlob,
+      thumbBlob: imageSet.thumbBlob,
+      name: file.name || "未命名照片",
+      type: imageSet.photoBlob.type,
+      size: imageSet.photoBlob.size,
+      originalSize: file.size,
+      width: imageSet.width,
+      height: imageSet.height,
+      createdAt: Date.now(),
+    });
+  }
+
+  async function addVideo(file) {
+    const maxSize = getMaxVideoSizeBytes();
+    if (file.size > maxSize) {
+      throw new Error(`视频超过 ${getMaxVideoSizeMB()} MB。`);
+    }
+
+    if (isCloudMode()) {
+      return addCloudVideo(file);
+    }
+
+    return addLocalMedia(STORES.videos, {
+      blob: file,
+      name: file.name || "未命名视频",
+      type: file.type,
+      size: file.size,
+      createdAt: Date.now(),
+    });
+  }
+
+  async function compressImage(file) {
+    const image = await loadImage(file);
+
+    try {
+      const photoSize = fitWithin(
+        image.naturalWidth,
+        image.naturalHeight,
+        cloud.config.imageMaxEdge
+      );
+      const thumbSize = fitWithin(
+        image.naturalWidth,
+        image.naturalHeight,
+        cloud.config.thumbMaxEdge
+      );
+
+      const photoBlob = await drawImageToBlob(
+        image,
+        photoSize,
+        cloud.config.imageQuality
+      );
+      const thumbBlob = await drawImageToBlob(
+        image,
+        thumbSize,
+        cloud.config.thumbQuality
+      );
+
+      return {
+        photoBlob,
+        thumbBlob,
+        width: photoSize.width,
+        height: photoSize.height,
+        thumbWidth: thumbSize.width,
+        thumbHeight: thumbSize.height,
+      };
+    } finally {
+      URL.revokeObjectURL(image.dataset.objectUrl);
+    }
+  }
+
+  function loadImage(file) {
+    return new Promise((resolve, reject) => {
+      const image = new Image();
+      const url = URL.createObjectURL(file);
+      image.dataset.objectUrl = url;
+      image.onload = () => resolve(image);
+      image.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error("图片读取失败。"));
+      };
+      image.src = url;
+    });
+  }
+
+  function fitWithin(width, height, maxEdge) {
+    const edge = Math.max(1, Number(maxEdge) || DEFAULT_CLOUD_CONFIG.imageMaxEdge);
+    const scale = Math.min(1, edge / Math.max(width, height));
+    return {
+      width: Math.max(1, Math.round(width * scale)),
+      height: Math.max(1, Math.round(height * scale)),
+    };
+  }
+
+  async function drawImageToBlob(image, size, quality) {
+    const canvas = document.createElement("canvas");
+    canvas.width = size.width;
+    canvas.height = size.height;
+
+    const context = canvas.getContext("2d", {
+      alpha: true,
+      desynchronized: true,
+    });
+    context.drawImage(image, 0, 0, size.width, size.height);
+
+    const webpBlob = await canvasToBlob(canvas, "image/webp", quality);
+    if (webpBlob) {
+      return webpBlob;
+    }
+
+    const jpegBlob = await canvasToBlob(canvas, "image/jpeg", quality);
+    if (jpegBlob) {
+      return jpegBlob;
+    }
+
+    throw new Error("图片压缩失败。");
+  }
+
+  function canvasToBlob(canvas, type, quality) {
+    return new Promise((resolve) => {
+      canvas.toBlob(resolve, type, quality);
+    });
+  }
+
+  async function addCloudPhoto(file, imageSet) {
+    ensureCloudClient();
+
+    const id = getUuid();
+    const extension = imageSet.photoBlob.type === "image/jpeg" ? "jpg" : "webp";
+    const photoPath = `photos/${id}.${extension}`;
+    const thumbPath = `thumbs/${id}.${extension}`;
+    const uploadedPaths = [];
+
+    try {
+      await uploadCloudFile(photoPath, imageSet.photoBlob);
+      uploadedPaths.push(photoPath);
+      await uploadCloudFile(thumbPath, imageSet.thumbBlob);
+      uploadedPaths.push(thumbPath);
+
+      const { error } = await cloud.client.from(MEDIA_TABLE).insert({
+        id,
+        kind: "photo",
+        title: file.name || "未命名照片",
+        storage_path: photoPath,
+        thumb_path: thumbPath,
+        mime_type: imageSet.photoBlob.type,
+        byte_size: imageSet.photoBlob.size,
+        original_byte_size: file.size,
+        width: imageSet.width,
+        height: imageSet.height,
+      });
+
+      if (error) {
+        throw error;
+      }
+    } catch (error) {
+      await removeCloudFiles(uploadedPaths);
+      throw error;
+    }
+  }
+
+  async function addCloudVideo(file) {
+    ensureCloudClient();
+
+    const id = getUuid();
+    const extension = getFileExtension(file);
+    const videoPath = `videos/${id}.${extension}`;
+    const uploadedPaths = [];
+
+    try {
+      await uploadCloudFile(videoPath, file);
+      uploadedPaths.push(videoPath);
+
+      const { error } = await cloud.client.from(MEDIA_TABLE).insert({
+        id,
+        kind: "video",
+        title: file.name || "未命名视频",
+        storage_path: videoPath,
+        mime_type: file.type || "application/octet-stream",
+        byte_size: file.size,
+        original_byte_size: file.size,
+      });
+
+      if (error) {
+        throw error;
+      }
+    } catch (error) {
+      await removeCloudFiles(uploadedPaths);
+      throw error;
+    }
+  }
+
+  async function uploadCloudFile(path, file) {
+    const { error } = await cloud.client.storage
+      .from(cloud.config.mediaBucket)
+      .upload(path, file, {
+        cacheControl: "31536000",
+        contentType: file.type || "application/octet-stream",
+        upsert: false,
+      });
+
+    if (error) {
+      throw error;
+    }
+  }
+
+  async function getAllMedia(storeName) {
+    if (isCloudMode()) {
+      return getCloudMedia(storeName);
+    }
+    return getLocalMedia(storeName);
+  }
+
+  async function getCloudMedia(storeName) {
+    ensureCloudClient();
+    const kind = storeName === STORES.photos ? "photo" : "video";
+    const { data, error } = await cloud.client
+      .from(MEDIA_TABLE)
+      .select("*")
+      .eq("kind", kind)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      throw error;
+    }
+
+    return Promise.all((data || []).map((row) => mapCloudMediaRow(row)));
+  }
+
+  async function mapCloudMediaRow(row) {
+    const url = await getSignedUrl(row.storage_path);
+    const thumbUrl = row.thumb_path ? await getSignedUrl(row.thumb_path) : url;
+
+    return {
+      id: row.id,
+      name: row.title || "未命名文件",
+      type: row.mime_type,
+      size: row.byte_size,
+      originalSize: row.original_byte_size,
+      width: row.width,
+      height: row.height,
+      createdAt: row.created_at,
+      storagePath: row.storage_path,
+      thumbPath: row.thumb_path,
+      url,
+      thumbUrl,
+    };
+  }
+
+  async function getSignedUrl(path) {
+    const { data, error } = await cloud.client.storage
+      .from(cloud.config.mediaBucket)
+      .createSignedUrl(path, SIGNED_URL_TTL_SECONDS);
+
+    if (error) {
+      throw error;
+    }
+
+    return data.signedUrl;
+  }
+
+  async function deleteMedia(storeName, item) {
+    if (isCloudMode()) {
+      return deleteCloudMedia(item);
+    }
+    return deleteLocalMedia(storeName, item.id);
+  }
+
+  async function deleteCloudMedia(item) {
+    ensureCloudClient();
+    await removeCloudFiles([item.storagePath, item.thumbPath].filter(Boolean));
+
+    const { error } = await cloud.client.from(MEDIA_TABLE).delete().eq("id", item.id);
+    if (error) {
+      throw error;
+    }
+  }
+
+  async function removeCloudFiles(paths) {
+    if (!paths.length || !cloud.client) {
+      return;
+    }
+
+    const { error } = await cloud.client.storage
+      .from(cloud.config.mediaBucket)
+      .remove(paths);
+
+    if (error) {
+      throw error;
+    }
+  }
+
+  async function addLocalMedia(storeName, item) {
     const db = await dbPromise;
     return runTransaction(db, storeName, "readwrite", (store) => {
       store.add(item);
     });
   }
 
-  async function getAllMedia(storeName) {
+  async function getLocalMedia(storeName) {
     const db = await dbPromise;
     return new Promise((resolve, reject) => {
       const transaction = db.transaction(storeName, "readonly");
@@ -257,7 +849,7 @@
     });
   }
 
-  async function deleteMedia(storeName, id) {
+  async function deleteLocalMedia(storeName, id) {
     const db = await dbPromise;
     await runTransaction(db, storeName, "readwrite", (store) => {
       store.delete(id);
@@ -276,57 +868,82 @@
   }
 
   async function renderAll() {
-    await Promise.all([renderPhotos(), renderVideos()]);
-    renderNotes();
+    await Promise.all([renderPhotos(), renderVideos(), renderNotes()]);
   }
 
   async function renderPhotos() {
     clearObjectUrls(STORES.photos);
-    const photos = await getAllMedia(STORES.photos);
-    const photosWithUrls = photos.map((photo) => ({
-      ...photo,
-      url: createObjectUrl(STORES.photos, photo.blob),
-    }));
-
-    renderCoverSlideshow(photosWithUrls);
     elements.photoGallery.innerHTML = "";
 
-    if (!photosWithUrls.length) {
-      elements.photoGallery.appendChild(
-        createEmptyState("把第一张合照或日常照片放进这里。")
+    try {
+      const photos = (await getAllMedia(STORES.photos)).map((photo) =>
+        attachDisplayUrls(STORES.photos, photo)
       );
-      return;
+
+      renderCoverSlideshow(photos);
+
+      if (!photos.length) {
+        elements.photoGallery.appendChild(
+          createEmptyState("把第一张合照或日常照片放进这里。")
+        );
+        return;
+      }
+
+      photos.forEach((photo) => {
+        const card = document.createElement("article");
+        card.className = "media-card photo-card";
+        card.innerHTML = `
+          <button class="preview-button" type="button" aria-label="预览 ${escapeHtml(
+            photo.name
+          )}">
+            <img src="${photo.thumbUrl || photo.url}" alt="${escapeHtml(
+              photo.name
+            )}" loading="lazy" />
+          </button>
+          <div class="media-meta">
+            <span class="media-title">
+              <strong>${escapeHtml(photo.name)}</strong>
+              <small>${formatFileSize(photo.size)} · ${formatTime(
+                photo.createdAt
+              )}</small>
+            </span>
+            <button class="icon-button delete-media" type="button" aria-label="删除 ${escapeHtml(
+              photo.name
+            )}">×</button>
+          </div>
+        `;
+
+        card.querySelector(".preview-button").addEventListener("click", () => {
+          openLightbox(photo.url, photo.name);
+        });
+        card.querySelector(".delete-media").addEventListener("click", async () => {
+          await deleteMedia(STORES.photos, photo);
+          await renderPhotos();
+        });
+        elements.photoGallery.appendChild(card);
+      });
+    } catch (error) {
+      console.error(error);
+      renderCoverSlideshow([]);
+      elements.photoGallery.appendChild(
+        createEmptyState("照片暂时加载失败，请检查云端配置。")
+      );
+      setStatus(elements.photoStatus, "照片加载失败，请检查 Supabase 设置。", true);
+    }
+  }
+
+  function attachDisplayUrls(storeName, item) {
+    if (isCloudMode()) {
+      return item;
     }
 
-    photosWithUrls.forEach((photo) => {
-      const card = document.createElement("article");
-      card.className = "media-card photo-card";
-      card.innerHTML = `
-        <button class="preview-button" type="button" aria-label="预览 ${escapeHtml(
-          photo.name
-        )}">
-          <img src="${photo.url}" alt="${escapeHtml(photo.name)}" loading="lazy" />
-        </button>
-        <div class="media-meta">
-          <span class="media-title">
-            <strong>${escapeHtml(photo.name)}</strong>
-            <small>${formatTime(photo.createdAt)}</small>
-          </span>
-          <button class="icon-button delete-media" type="button" aria-label="删除 ${
-            escapeHtml(photo.name)
-          }">×</button>
-        </div>
-      `;
-
-      card.querySelector(".preview-button").addEventListener("click", () => {
-        openLightbox(photo.url, photo.name);
-      });
-      card.querySelector(".delete-media").addEventListener("click", async () => {
-        await deleteMedia(STORES.photos, photo.id);
-        await renderPhotos();
-      });
-      elements.photoGallery.appendChild(card);
-    });
+    const url = createObjectUrl(storeName, item.blob);
+    const thumbUrl = item.thumbBlob ? createObjectUrl(storeName, item.thumbBlob) : url;
+    return {
+      ...item,
+      url,
+      thumbUrl,
+    };
   }
 
   function renderCoverSlideshow(photos) {
@@ -394,38 +1011,50 @@
 
   async function renderVideos() {
     clearObjectUrls(STORES.videos);
-    const videos = await getAllMedia(STORES.videos);
     elements.videoGallery.innerHTML = "";
 
-    if (!videos.length) {
-      elements.videoGallery.appendChild(
-        createEmptyState("上传一段短视频，给这段日常留一点声音和光。")
+    try {
+      const videos = (await getAllMedia(STORES.videos)).map((video) =>
+        attachDisplayUrls(STORES.videos, video)
       );
-      return;
-    }
 
-    videos.forEach((video) => {
-      const url = createObjectUrl(STORES.videos, video.blob);
-      const card = document.createElement("article");
-      card.className = "media-card video-card";
-      card.innerHTML = `
-        <video src="${url}" controls preload="metadata"></video>
-        <div class="media-meta">
-          <span class="media-title">
-            <strong>${escapeHtml(video.name)}</strong>
-            <small>${formatFileSize(video.size)} · ${formatTime(video.createdAt)}</small>
-          </span>
-          <button class="icon-button delete-media" type="button" aria-label="删除 ${
-            escapeHtml(video.name)
-          }">×</button>
-        </div>
-      `;
-      card.querySelector(".delete-media").addEventListener("click", async () => {
-        await deleteMedia(STORES.videos, video.id);
-        await renderVideos();
+      if (!videos.length) {
+        elements.videoGallery.appendChild(
+          createEmptyState("上传一段短视频，给这段日常留一点声音和光。")
+        );
+        return;
+      }
+
+      videos.forEach((video) => {
+        const card = document.createElement("article");
+        card.className = "media-card video-card";
+        card.innerHTML = `
+          <video src="${video.url}" controls preload="metadata"></video>
+          <div class="media-meta">
+            <span class="media-title">
+              <strong>${escapeHtml(video.name)}</strong>
+              <small>${formatFileSize(video.size)} · ${formatTime(
+                video.createdAt
+              )}</small>
+            </span>
+            <button class="icon-button delete-media" type="button" aria-label="删除 ${escapeHtml(
+              video.name
+            )}">×</button>
+          </div>
+        `;
+        card.querySelector(".delete-media").addEventListener("click", async () => {
+          await deleteMedia(STORES.videos, video);
+          await renderVideos();
+        });
+        elements.videoGallery.appendChild(card);
       });
-      elements.videoGallery.appendChild(card);
-    });
+    } catch (error) {
+      console.error(error);
+      elements.videoGallery.appendChild(
+        createEmptyState("视频暂时加载失败，请检查云端配置。")
+      );
+      setStatus(elements.videoStatus, "视频加载失败，请检查 Supabase 设置。", true);
+    }
   }
 
   function createObjectUrl(storeName, blob) {
@@ -461,7 +1090,7 @@
     elements.lightboxImage.removeAttribute("src");
   }
 
-  function handleNoteSubmit(event) {
+  async function handleNoteSubmit(event) {
     event.preventDefault();
     const body = elements.noteBody.value.trim();
     const title = elements.noteTitle.value.trim();
@@ -472,25 +1101,90 @@
       return;
     }
 
-    const notes = getNotes();
-    notes.unshift({
-      id: getId(),
-      type: elements.noteType.value,
-      to: elements.noteTo.value,
-      title: title || "没有标题的小记录",
-      body,
-      createdAt: Date.now(),
-    });
-    saveNotes(notes);
-    elements.noteForm.reset();
-    elements.formStatus.textContent = "已保存。";
-    window.setTimeout(() => {
-      elements.formStatus.textContent = "";
-    }, 1800);
-    renderNotes();
+    setStatus(elements.formStatus, "正在保存...");
+
+    try {
+      await addNote({
+        id: getId(),
+        type: elements.noteType.value,
+        to: elements.noteTo.value,
+        title: title || "没有标题的小记录",
+        body,
+        createdAt: Date.now(),
+      });
+      elements.noteForm.reset();
+      setStatus(elements.formStatus, "已保存。");
+      await renderNotes();
+      window.setTimeout(() => {
+        clearStatus(elements.formStatus);
+      }, 1800);
+    } catch (error) {
+      console.error(error);
+      setStatus(elements.formStatus, "保存失败，请检查云端配置。", true);
+    }
   }
 
-  function getNotes() {
+  async function addNote(note) {
+    if (isCloudMode()) {
+      ensureCloudClient();
+      const { error } = await cloud.client.from(NOTES_TABLE).insert({
+        id: getUuid(),
+        note_type: note.type,
+        note_to: note.to,
+        title: note.title,
+        body: note.body,
+      });
+
+      if (error) {
+        throw error;
+      }
+      return;
+    }
+
+    const notes = getLocalNotes();
+    notes.unshift(note);
+    saveLocalNotes(notes);
+  }
+
+  async function getNotes() {
+    if (isCloudMode()) {
+      ensureCloudClient();
+      const { data, error } = await cloud.client
+        .from(NOTES_TABLE)
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        throw error;
+      }
+
+      return (data || []).map((note) => ({
+        id: note.id,
+        type: note.note_type,
+        to: note.note_to,
+        title: note.title,
+        body: note.body,
+        createdAt: note.created_at,
+      }));
+    }
+
+    return getLocalNotes();
+  }
+
+  async function deleteNote(id) {
+    if (isCloudMode()) {
+      ensureCloudClient();
+      const { error } = await cloud.client.from(NOTES_TABLE).delete().eq("id", id);
+      if (error) {
+        throw error;
+      }
+      return;
+    }
+
+    saveLocalNotes(getLocalNotes().filter((item) => item.id !== id));
+  }
+
+  function getLocalNotes() {
     try {
       return JSON.parse(localStorage.getItem(NOTES_KEY)) || [];
     } catch (error) {
@@ -498,8 +1192,99 @@
     }
   }
 
-  function saveNotes(notes) {
+  function saveLocalNotes(notes) {
     localStorage.setItem(NOTES_KEY, JSON.stringify(notes));
+  }
+
+  async function renderNotes() {
+    elements.noteList.innerHTML = "";
+
+    try {
+      const notes = await getNotes();
+
+      if (!notes.length) {
+        elements.noteList.appendChild(
+          createEmptyState("第一条日志或留言，会让这里开始有时间的重量。")
+        );
+        return;
+      }
+
+      notes.forEach((note) => {
+        const card = document.createElement("article");
+        card.className = "note-card";
+        card.innerHTML = `
+          <div class="note-top">
+            <div>
+              <span class="note-chip">${escapeHtml(note.type)} · 给 ${escapeHtml(
+                note.to
+              )}</span>
+              <h3>${escapeHtml(note.title)}</h3>
+            </div>
+            <button class="action-button danger" type="button">删除</button>
+          </div>
+          <p>${escapeHtml(note.body)}</p>
+          <div class="note-meta">${formatTime(note.createdAt)}</div>
+        `;
+        card.querySelector("button").addEventListener("click", async () => {
+          await deleteNote(note.id);
+          await renderNotes();
+        });
+        elements.noteList.appendChild(card);
+      });
+    } catch (error) {
+      console.error(error);
+      elements.noteList.appendChild(
+        createEmptyState("日志和留言暂时加载失败，请检查云端配置。")
+      );
+      setStatus(elements.formStatus, "加载失败，请检查 Supabase 设置。", true);
+    }
+  }
+
+  function setStatus(element, message, isError = false) {
+    if (!element) {
+      return;
+    }
+    element.textContent = message;
+    element.classList.toggle("is-error", isError);
+  }
+
+  function clearStatus(element) {
+    if (!element) {
+      return;
+    }
+    element.textContent = "";
+    element.classList.remove("is-error");
+  }
+
+  function getMaxVideoSizeMB() {
+    const configured = Number(cloud.config.maxVideoSizeMB);
+    return Math.max(1, Math.min(50, Number.isFinite(configured) ? configured : 45));
+  }
+
+  function getMaxVideoSizeBytes() {
+    return getMaxVideoSizeMB() * 1024 * 1024;
+  }
+
+  function getFileExtension(file) {
+    const nameExtension = (file.name || "").split(".").pop();
+    if (nameExtension && /^[a-z0-9]{2,5}$/i.test(nameExtension)) {
+      return nameExtension.toLowerCase();
+    }
+
+    const mimeExtensions = {
+      "video/mp4": "mp4",
+      "video/quicktime": "mov",
+      "video/webm": "webm",
+      "video/x-m4v": "m4v",
+    };
+
+    return mimeExtensions[file.type] || "mp4";
+  }
+
+  function ensureCloudClient() {
+    if (!cloud.client) {
+      throw new Error(cloud.initError || "云端配置还没有完成。");
+    }
   }
 
   function getId() {
@@ -512,39 +1297,20 @@
     return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
   }
 
-  function renderNotes() {
-    const notes = getNotes();
-    elements.noteList.innerHTML = "";
-
-    if (!notes.length) {
-      elements.noteList.appendChild(
-        createEmptyState("第一条日志或留言，会让这里开始有时间的重量。")
-      );
-      return;
+  function getUuid() {
+    if (
+      globalThis.crypto &&
+      typeof globalThis.crypto.randomUUID === "function"
+    ) {
+      return globalThis.crypto.randomUUID();
     }
 
-    notes.forEach((note) => {
-      const card = document.createElement("article");
-      card.className = "note-card";
-      card.innerHTML = `
-        <div class="note-top">
-          <div>
-            <span class="note-chip">${escapeHtml(note.type)} · 给 ${escapeHtml(
-              note.to
-            )}</span>
-            <h3>${escapeHtml(note.title)}</h3>
-          </div>
-          <button class="action-button danger" type="button">删除</button>
-        </div>
-        <p>${escapeHtml(note.body)}</p>
-        <div class="note-meta">${formatTime(note.createdAt)}</div>
-      `;
-      card.querySelector("button").addEventListener("click", () => {
-        saveNotes(notes.filter((item) => item.id !== note.id));
-        renderNotes();
-      });
-      elements.noteList.appendChild(card);
-    });
+    return "10000000-1000-4000-8000-100000000000".replace(/[018]/g, (char) =>
+      (
+        Number(char) ^
+        (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (Number(char) / 4)))
+      ).toString(16)
+    );
   }
 
   function formatTime(value) {

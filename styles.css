@@ -160,7 +160,8 @@ body.is-locked .app-shell {
 .brand small,
 .eyebrow,
 .label,
-.form-status {
+.form-status,
+.panel-status {
   color: var(--muted);
 }
 
@@ -361,6 +362,12 @@ h3 {
   padding: 20px;
 }
 
+.panel-status {
+  min-height: 1.2em;
+  margin: -8px 0 14px;
+  font-size: 0.85rem;
+}
+
 .panel-head {
   display: flex;
   align-items: center;
@@ -412,6 +419,13 @@ h3 {
   color: #fff;
 }
 
+.action-button:disabled,
+.action-button.is-busy {
+  cursor: wait;
+  opacity: 0.68;
+  transform: none;
+}
+
 .action-button.danger {
   border-color: #f0c9bf;
   background: #fff7f4;
@@ -421,6 +435,11 @@ h3 {
 .action-button:hover,
 .icon-button:hover {
   transform: translateY(-1px);
+}
+
+.action-button:disabled:hover,
+.action-button.is-busy:hover {
+  transform: none;
 }
 
 .action-button:focus-visible,
@@ -580,6 +599,11 @@ textarea {
 .form-status {
   min-height: 1.2em;
   font-size: 0.85rem;
+}
+
+.panel-status.is-error,
+.form-status.is-error {
+  color: #a14e3d;
 }
 
 .note-list {

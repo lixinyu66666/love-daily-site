@@ -4,6 +4,7 @@ assets/*_720 copy.png
 assets/cover.png
 assets/cover-before-*.png
 assets/european-wall-bg.png
+supabase/.temp/
 
 # macOS
 .DS_Store
