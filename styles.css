@@ -32,6 +32,11 @@ body {
   line-height: 1.5;
 }
 
+body.is-locked {
+  min-height: 100vh;
+  overflow: hidden;
+}
+
 button,
 input,
 select,
@@ -52,6 +57,56 @@ img,
 video {
   display: block;
   max-width: 100%;
+}
+
+.auth-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: linear-gradient(135deg, #f7faf7 0%, #eef5ef 54%, #fff8f3 100%);
+  background-position: center;
+  background-size: cover;
+}
+
+body:not(.is-locked) .auth-gate {
+  display: none;
+}
+
+body.is-locked .app-shell {
+  display: none;
+}
+
+.auth-card {
+  display: grid;
+  width: min(360px, 100%);
+  gap: 14px;
+  border: 1px solid rgba(221, 231, 223, 0.86);
+  border-radius: var(--radius);
+  padding: 24px;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(18px);
+}
+
+.auth-mark {
+  width: 48px;
+  height: 48px;
+}
+
+.auth-title {
+  max-width: none;
+  margin-bottom: 2px;
+  font-size: 2rem;
+}
+
+.auth-error {
+  min-height: 1.3em;
+  margin: 0;
+  color: #a14e3d;
+  font-size: 0.88rem;
 }
 
 .app-shell {

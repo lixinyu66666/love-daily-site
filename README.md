@@ -28,7 +28,13 @@ http://localhost:4173
 
 ## 发布到 GitHub Pages
 
-如果想使用 `https://用户名.github.io/`，在 GitHub 创建一个名为 `用户名.github.io` 的仓库，然后把本项目推送到仓库的 `main` 分支。
+当前发布地址使用 GitHub Pages 项目页：
+
+```text
+https://lixinyu66666.github.io/love-daily-site/
+```
+
+如果想使用 `https://用户名.github.io/仓库名/`，在 GitHub 创建一个普通公开仓库，然后把本项目推送到仓库的 `main` 分支。
 
 GitHub 仓库设置中进入 `Settings -> Pages`，发布源选择 `Deploy from a branch`，分支选择 `main`，目录选择 `/root`。
 

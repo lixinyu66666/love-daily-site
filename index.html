@@ -7,8 +7,30 @@
     <link rel="icon" href="./assets/favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="./styles.css" />
   </head>
-  <body>
-    <div class="app-shell">
+  <body class="is-locked">
+    <section class="auth-gate" id="authGate" aria-label="访问验证">
+      <form class="auth-card" id="authForm">
+        <span class="brand-mark auth-mark" aria-hidden="true">ML99</span>
+        <h1 class="auth-title">Private Memory</h1>
+        <label>
+          密码
+          <input
+            id="authPassword"
+            type="password"
+            inputmode="numeric"
+            autocomplete="current-password"
+            placeholder="请输入密码"
+          />
+        </label>
+        <p class="auth-error" id="authError" role="alert"></p>
+        <button class="action-button primary" type="submit">
+          <span class="button-icon" aria-hidden="true">✓</span>
+          进入
+        </button>
+      </form>
+    </section>
+
+    <div class="app-shell" id="appShell" aria-hidden="true">
       <header class="topbar" aria-label="页面顶部">
         <a class="brand" href="#home" aria-label="回到首页">
           <span class="brand-mark" aria-hidden="true">ML99</span>
@@ -32,8 +54,14 @@
               <img
                 class="cover-slide-image is-visible"
                 id="coverSlideImage"
-                src="./assets/cover.png"
-                alt="阳光桌面、两杯咖啡和相片组成的清爽日常画面"
+                data-default-src="./assets/cover-960.webp"
+                data-default-srcset="./assets/cover-640.webp 640w, ./assets/cover-960.webp 960w, ./assets/cover-1280.webp 1280w, ./assets/cover-1672.webp 1672w"
+                data-default-sizes="(max-width: 900px) calc(100vw - 22px), 58vw"
+                width="1672"
+                height="941"
+                fetchpriority="high"
+                decoding="async"
+                alt="欧式墙壁上错落悬挂的九张照片相框"
               />
               <div class="cover-slide-meta">
                 <span id="coverSlideCount">Photo Wall</span>

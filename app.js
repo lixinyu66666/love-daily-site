@@ -1,5 +1,7 @@
 (function () {
   const START_DATE = new Date(2022, 11, 10);
+  const PASSWORD = "620725";
+  const AUTH_KEY = "ml99-authenticated";
   const DB_NAME = "lq-love-daily";
   const DB_VERSION = 1;
   const STORES = {
@@ -9,6 +11,11 @@
   const NOTES_KEY = "lq-love-notes";
 
   const elements = {
+    authGate: document.querySelector("#authGate"),
+    authForm: document.querySelector("#authForm"),
+    authPassword: document.querySelector("#authPassword"),
+    authError: document.querySelector("#authError"),
+    appShell: document.querySelector("#appShell"),
     daysTogether: document.querySelector("#daysTogether"),
     daysToMilestone: document.querySelector("#daysToMilestone"),
     milestoneLine: document.querySelector("#milestoneLine"),
@@ -34,6 +41,7 @@
   };
 
   let dbPromise;
+  let appStarted = false;
   let coverTimer = null;
   let coverIndex = 0;
   const objectUrls = {
@@ -49,11 +57,64 @@
   });
 
   function init() {
+    bindAuthEvents();
+    if (isAuthenticated()) {
+      unlockSite();
+    } else {
+      elements.authPassword.focus();
+    }
+  }
+
+  function bindAuthEvents() {
+    elements.authForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      if (elements.authPassword.value === PASSWORD) {
+        sessionStorage.setItem(AUTH_KEY, "true");
+        elements.authPassword.value = "";
+        unlockSite();
+        return;
+      }
+
+      elements.authError.textContent = "密码不正确。";
+      elements.authPassword.select();
+    });
+  }
+
+  function isAuthenticated() {
+    try {
+      return sessionStorage.getItem(AUTH_KEY) === "true";
+    } catch (error) {
+      return false;
+    }
+  }
+
+  function unlockSite() {
+    if (appStarted) {
+      return;
+    }
+
+    appStarted = true;
+    document.body.classList.remove("is-locked");
+    elements.authGate.setAttribute("aria-hidden", "true");
+    elements.appShell.setAttribute("aria-hidden", "false");
+    setDefaultCoverSource();
     renderRelationshipTimer();
     setInterval(renderRelationshipTimer, 60 * 60 * 1000);
     dbPromise = openDatabase();
     bindEvents();
     renderAll();
+  }
+
+  function setDefaultCoverSource() {
+    const { defaultSrc, defaultSrcset, defaultSizes } =
+      elements.coverSlideImage.dataset;
+    if (defaultSrcset) {
+      elements.coverSlideImage.setAttribute("srcset", defaultSrcset);
+    }
+    if (defaultSizes) {
+      elements.coverSlideImage.setAttribute("sizes", defaultSizes);
+    }
+    elements.coverSlideImage.src = defaultSrc;
   }
 
   function bindEvents() {
@@ -265,7 +326,9 @@
       coverIndex = 0;
       setCoverSlide({
         name: "ML99",
-        url: "./assets/cover.png",
+        url: elements.coverSlideImage.dataset.defaultSrc,
+        srcset: elements.coverSlideImage.dataset.defaultSrcset,
+        sizes: elements.coverSlideImage.dataset.defaultSizes,
         position: "Photo Wall",
       });
       return;
@@ -294,6 +357,16 @@
   function setCoverSlide(slide) {
     elements.coverSlideImage.classList.remove("is-visible");
     window.setTimeout(() => {
+      if (slide.srcset) {
+        elements.coverSlideImage.setAttribute("srcset", slide.srcset);
+      } else {
+        elements.coverSlideImage.removeAttribute("srcset");
+      }
+      if (slide.sizes) {
+        elements.coverSlideImage.setAttribute("sizes", slide.sizes);
+      } else {
+        elements.coverSlideImage.removeAttribute("sizes");
+      }
       elements.coverSlideImage.src = slide.url;
       elements.coverSlideImage.alt = slide.name;
       elements.coverSlideCount.textContent = slide.position;
