@@ -1,6 +1,7 @@
 (function () {
   const START_DATE = new Date(2022, 11, 10);
-  const PASSWORD = "620725";
+  const PASSWORD_HASH =
+    "bf9df5a155fbd9ca3740da07a8b4875179181107c1687986c29bae3d24b49c50";
   const AUTH_KEY = "ml99-authenticated";
   const DB_NAME = "lq-love-daily";
   const DB_VERSION = 1;
@@ -66,9 +67,10 @@
   }
 
   function bindAuthEvents() {
-    elements.authForm.addEventListener("submit", (event) => {
+    elements.authForm.addEventListener("submit", async (event) => {
       event.preventDefault();
-      if (elements.authPassword.value === PASSWORD) {
+      const inputHash = await sha256(elements.authPassword.value);
+      if (inputHash === PASSWORD_HASH) {
         sessionStorage.setItem(AUTH_KEY, "true");
         elements.authPassword.value = "";
         unlockSite();
@@ -78,6 +80,14 @@
       elements.authError.textContent = "密码不正确。";
       elements.authPassword.select();
     });
+  }
+
+  async function sha256(value) {
+    const bytes = new TextEncoder().encode(value);
+    const digest = await crypto.subtle.digest("SHA-256", bytes);
+    return Array.from(new Uint8Array(digest))
+      .map((byte) => byte.toString(16).padStart(2, "0"))
+      .join("");
   }
 
   function isAuthenticated() {
