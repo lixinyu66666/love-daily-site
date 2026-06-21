@@ -1,0 +1,8 @@
+# Local/generated source images that are not required by the published site.
+assets/*_720.png
+assets/*_720 copy.png
+assets/cover-before-*.png
+assets/european-wall-bg.png
+
+# macOS
+.DS_Store

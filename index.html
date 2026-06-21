@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ML99 · 恋爱日常</title>
+    <link rel="icon" href="./assets/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar" aria-label="页面顶部">
+        <a class="brand" href="#home" aria-label="回到首页">
+          <span class="brand-mark" aria-hidden="true">ML99</span>
+          <span>
+            <strong>ML99</strong>
+            <small>恋爱日常</small>
+          </span>
+        </a>
+
+        <nav class="topnav" aria-label="主要导航">
+          <a href="#photos">照片</a>
+          <a href="#videos">视频</a>
+          <a href="#notes">日志留言</a>
+        </nav>
+      </header>
+
+      <main id="home">
+        <section class="overview" aria-label="恋爱概览">
+          <div class="cover-panel" aria-label="照片墙自动放映">
+            <div class="cover-slideshow" id="coverSlideshow">
+              <img
+                class="cover-slide-image is-visible"
+                id="coverSlideImage"
+                src="./assets/cover.png"
+                alt="阳光桌面、两杯咖啡和相片组成的清爽日常画面"
+              />
+              <div class="cover-slide-meta">
+                <span id="coverSlideCount">Photo Wall</span>
+                <strong id="coverSlideTitle">ML99</strong>
+              </div>
+            </div>
+          </div>
+
+          <div class="stats-panel" aria-live="polite">
+            <p class="eyebrow">从 2022 年 12 月 10 日开始</p>
+            <h1>Happy Everyday Together</h1>
+            <div class="timer-grid">
+              <article>
+                <span class="metric" id="daysTogether">--</span>
+                <span class="label">在一起的天数</span>
+              </article>
+              <article>
+                <span class="metric" id="daysToMilestone">--</span>
+                <span class="label">距离下一个整百天</span>
+              </article>
+            </div>
+            <p class="milestone-line" id="milestoneLine">正在计算纪念日...</p>
+          </div>
+        </section>
+
+        <section class="workspace-grid" aria-label="日常记录工具">
+          <div class="media-column" id="photos">
+            <section class="panel">
+              <div class="panel-head">
+                <div>
+                  <p class="eyebrow">Photos</p>
+                  <h2>照片墙</h2>
+                </div>
+                <label class="action-button primary">
+                  <input id="photoInput" type="file" accept="image/*" multiple />
+                  <span class="button-icon" aria-hidden="true">+</span>
+                  添加照片
+                </label>
+              </div>
+              <div class="gallery-grid" id="photoGallery" aria-live="polite"></div>
+            </section>
+
+            <section class="panel" id="videos">
+              <div class="panel-head">
+                <div>
+                  <p class="eyebrow">Videos</p>
+                  <h2>视频放映</h2>
+                </div>
+                <label class="action-button primary">
+                  <input id="videoInput" type="file" accept="video/*" multiple />
+                  <span class="button-icon" aria-hidden="true">+</span>
+                  添加视频
+                </label>
+              </div>
+              <div class="video-grid" id="videoGallery" aria-live="polite"></div>
+            </section>
+          </div>
+
+          <section class="panel notes-panel" id="notes">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Diary & Messages</p>
+                <h2>日志和留言</h2>
+              </div>
+            </div>
+
+            <form class="note-form" id="noteForm">
+              <div class="field-row">
+                <label>
+                  类型
+                  <select id="noteType">
+                    <option value="日志">日志</option>
+                    <option value="留言">留言</option>
+                  </select>
+                </label>
+                <label>
+                  写给
+                  <select id="noteTo">
+                    <option value="我们">我们</option>
+                    <option value="李新宇">李新宇</option>
+                    <option value="孟秋君">孟秋君</option>
+                  </select>
+                </label>
+              </div>
+              <label>
+                标题
+                <input id="noteTitle" type="text" maxlength="40" placeholder="今天想记录什么" />
+              </label>
+              <label>
+                内容
+                <textarea id="noteBody" rows="5" maxlength="1000" placeholder="写下一个瞬间、一句话，或者一段小日记"></textarea>
+              </label>
+              <div class="form-actions">
+                <span class="form-status" id="formStatus" role="status"></span>
+                <button class="action-button primary" type="submit">
+                  <span class="button-icon" aria-hidden="true">✓</span>
+                  保存
+                </button>
+              </div>
+            </form>
+
+            <div class="note-list" id="noteList" aria-live="polite"></div>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <dialog class="lightbox" id="lightbox">
+      <button class="icon-button close-button" id="closeLightbox" type="button" aria-label="关闭照片预览">×</button>
+      <img id="lightboxImage" alt="" />
+      <p id="lightboxCaption"></p>
+    </dialog>
+
+    <template id="emptyTemplate">
+      <div class="empty-state">
+        <span aria-hidden="true"></span>
+        <p></p>
+      </div>
+    </template>
+
+    <script src="./app.js" defer></script>
+  </body>
+</html>
