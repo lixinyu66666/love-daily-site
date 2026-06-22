@@ -1,15 +1,17 @@
 :root {
-  --bg: #f7faf7;
-  --surface: #ffffff;
-  --surface-soft: #eef5ef;
-  --ink: #203029;
-  --muted: #67756d;
-  --line: #dde7df;
-  --green: #5e8d73;
-  --green-dark: #376049;
-  --coral: #dc8068;
-  --coral-soft: #ffe7df;
-  --shadow: 0 20px 50px rgba(45, 71, 55, 0.11);
+  --page-bg-image: url("./assets/2dd29d788d74cdfa74f97a8fdc34e043.jpg");
+  --bg: #fff5f8;
+  --surface: rgba(255, 255, 255, 0.8);
+  --surface-solid: #fffafb;
+  --surface-soft: rgba(255, 231, 238, 0.72);
+  --ink: #39252d;
+  --muted: #826b73;
+  --line: rgba(228, 176, 192, 0.58);
+  --green: #e7a4b6;
+  --green-dark: #b75e77;
+  --coral: #d98076;
+  --coral-soft: #ffe2e8;
+  --shadow: 0 24px 64px rgba(128, 59, 80, 0.15);
   --radius: 8px;
 }
 
@@ -24,7 +26,16 @@ html {
 body {
   margin: 0;
   min-width: 320px;
-  background: var(--bg);
+  min-height: 100vh;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 247, 250, 0.78) 0%,
+      rgba(255, 237, 243, 0.88) 54%,
+      rgba(255, 250, 251, 0.94) 100%
+    ),
+    var(--page-bg-image) center 44% / cover fixed no-repeat,
+    var(--bg);
   color: var(--ink);
   font-family:
     Inter, "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", Arial,
@@ -66,9 +77,15 @@ video {
   display: grid;
   place-items: center;
   padding: 24px;
-  background: linear-gradient(135deg, #f7faf7 0%, #eef5ef 54%, #fff8f3 100%);
-  background-position: center;
-  background-size: cover;
+  background:
+    linear-gradient(
+      135deg,
+      rgba(255, 247, 250, 0.72) 0%,
+      rgba(255, 233, 241, 0.88) 56%,
+      rgba(255, 248, 244, 0.86) 100%
+    ),
+    var(--page-bg-image) center 44% / cover fixed no-repeat,
+    var(--bg);
 }
 
 body:not(.is-locked) .auth-gate {
@@ -83,10 +100,10 @@ body.is-locked .app-shell {
   display: grid;
   width: min(360px, 100%);
   gap: 14px;
-  border: 1px solid rgba(221, 231, 223, 0.86);
+  border: 1px solid rgba(228, 176, 192, 0.68);
   border-radius: var(--radius);
   padding: 24px;
-  background: rgba(255, 255, 255, 0.88);
+  background: rgba(255, 250, 251, 0.82);
   box-shadow: var(--shadow);
   backdrop-filter: blur(18px);
 }
@@ -105,7 +122,7 @@ body.is-locked .app-shell {
 .auth-error {
   min-height: 1.3em;
   margin: 0;
-  color: #a14e3d;
+  color: #a44b62;
   font-size: 0.88rem;
 }
 
@@ -124,7 +141,8 @@ body.is-locked .app-shell {
   justify-content: space-between;
   gap: 18px;
   padding: 12px 0 18px;
-  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  border-bottom: 1px solid rgba(228, 176, 192, 0.42);
+  background: rgba(255, 246, 249, 0.76);
   backdrop-filter: blur(18px);
 }
 
@@ -141,7 +159,7 @@ body.is-locked .app-shell {
   height: 42px;
   place-items: center;
   border-radius: var(--radius);
-  background: var(--green-dark);
+  background: linear-gradient(135deg, var(--green-dark), #dc8fa4);
   color: #fff;
   font-size: 0.72rem;
   font-weight: 800;
@@ -206,6 +224,7 @@ body.is-locked .app-shell {
   border-radius: var(--radius);
   background: var(--surface);
   box-shadow: var(--shadow);
+  backdrop-filter: blur(18px);
 }
 
 .cover-panel {
@@ -249,7 +268,7 @@ body.is-locked .app-shell {
   border: 1px solid rgba(255, 255, 255, 0.54);
   border-radius: var(--radius);
   padding: 10px 12px;
-  background: rgba(255, 255, 255, 0.78);
+  background: rgba(255, 250, 251, 0.78);
   color: var(--ink);
   backdrop-filter: blur(14px);
 }
@@ -324,7 +343,7 @@ h3 {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: 16px;
-  background: var(--surface-soft);
+  background: rgba(255, 241, 245, 0.74);
 }
 
 .metric {
@@ -395,7 +414,7 @@ h3 {
   gap: 8px;
   border: 1px solid var(--line);
   padding: 8px 13px;
-  background: var(--surface);
+  background: var(--surface-solid);
   color: var(--ink);
   font-weight: 750;
   white-space: nowrap;
@@ -427,9 +446,9 @@ h3 {
 }
 
 .action-button.danger {
-  border-color: #f0c9bf;
-  background: #fff7f4;
-  color: #a14e3d;
+  border-color: #f0bfcc;
+  background: #fff3f6;
+  color: #a44b62;
 }
 
 .action-button:hover,
@@ -447,7 +466,7 @@ h3 {
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
-  outline: 3px solid rgba(94, 141, 115, 0.22);
+  outline: 3px solid rgba(183, 94, 119, 0.22);
   outline-offset: 2px;
 }
 
@@ -494,7 +513,7 @@ input[type="file"] {
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: #fff;
+  background: var(--surface-solid);
 }
 
 .photo-card {
@@ -563,10 +582,10 @@ input[type="file"] {
 
 .delete-media {
   min-height: 32px;
-  border: 1px solid #efc8bd;
+  border: 1px solid #f0bfcc;
   padding: 6px 11px;
-  background: #fff7f4;
-  color: #9a4938;
+  background: #fff3f6;
+  color: #a44b62;
   font-size: 0.82rem;
 }
 
@@ -597,7 +616,7 @@ textarea {
   width: 100%;
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: #fff;
+  background: rgba(255, 250, 251, 0.92);
   color: var(--ink);
 }
 
@@ -627,7 +646,7 @@ textarea {
 
 .panel-status.is-error,
 .form-status.is-error {
-  color: #a14e3d;
+  color: #a44b62;
 }
 
 .note-list {
@@ -640,7 +659,7 @@ textarea {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: 14px;
-  background: #fff;
+  background: rgba(255, 250, 251, 0.9);
 }
 
 .note-top {
@@ -664,14 +683,14 @@ textarea {
   border-radius: 999px;
   padding: 3px 9px;
   background: var(--coral-soft);
-  color: #8b4636;
+  color: #934a5e;
   font-size: 0.76rem;
   font-weight: 800;
 }
 
 .note-card p {
   margin-bottom: 0;
-  color: #3d4d45;
+  color: #4e3740;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -687,11 +706,11 @@ textarea {
   flex: 1 0 100%;
   min-height: 170px;
   place-items: center;
-  border: 1px dashed #cad8cf;
+  border: 1px dashed #e5b8c5;
   border-radius: var(--radius);
   background:
-    linear-gradient(135deg, rgba(94, 141, 115, 0.08), transparent 42%),
-    #fbfdfb;
+    linear-gradient(135deg, rgba(183, 94, 119, 0.1), transparent 42%),
+    rgba(255, 250, 251, 0.82);
   color: var(--muted);
   text-align: center;
 }
@@ -716,12 +735,12 @@ textarea {
   border: 0;
   border-radius: var(--radius);
   padding: 14px;
-  background: #fff;
+  background: var(--surface-solid);
   box-shadow: 0 24px 80px rgba(0, 0, 0, 0.28);
 }
 
 .lightbox::backdrop {
-  background: rgba(23, 32, 27, 0.58);
+  background: rgba(54, 26, 36, 0.58);
 }
 
 .lightbox img {
@@ -729,7 +748,7 @@ textarea {
   max-height: 78vh;
   object-fit: contain;
   border-radius: var(--radius);
-  background: #f3f5f2;
+  background: #fff0f4;
 }
 
 .lightbox p {
@@ -743,7 +762,7 @@ textarea {
   right: 16px;
   width: 38px;
   height: 38px;
-  background: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 250, 251, 0.9);
   color: var(--ink);
   font-size: 1.7rem;
   line-height: 1;
@@ -763,6 +782,12 @@ textarea {
 }
 
 @media (max-width: 640px) {
+  body,
+  .auth-gate {
+    background-attachment: scroll;
+    background-position: center top;
+  }
+
   .app-shell {
     width: min(100% - 22px, 1180px);
     padding-top: 10px;
