@@ -9,7 +9,7 @@ set public = false,
 
 create table if not exists public.ml99_media (
   id uuid primary key default gen_random_uuid(),
-  kind text not null check (kind in ('photo', 'video')),
+  kind text not null check (kind = 'photo'),
   title text not null default '未命名文件',
   storage_path text not null,
   thumb_path text,

@@ -43,7 +43,6 @@
 
         <nav class="topnav" aria-label="主要导航">
           <a href="#photos">照片</a>
-          <a href="#videos">视频</a>
           <a href="#notes">日志留言</a>
         </nav>
       </header>
@@ -83,6 +82,10 @@
                 <span class="metric" id="daysToMilestone">--</span>
                 <span class="label">距离下一个整百天</span>
               </article>
+              <article class="anniversary-card">
+                <span class="metric anniversary-metric" id="nextAnniversary">--</span>
+                <span class="label" id="anniversaryLine">正在计算周年纪念日...</span>
+              </article>
             </div>
             <p class="milestone-line" id="milestoneLine">正在计算纪念日...</p>
           </div>
@@ -106,21 +109,6 @@
               <div class="gallery-grid" id="photoGallery" aria-live="polite"></div>
             </section>
 
-            <section class="panel" id="videos">
-              <div class="panel-head">
-                <div>
-                  <p class="eyebrow">Videos</p>
-                  <h2>视频放映</h2>
-                </div>
-                <label class="action-button primary">
-                  <input id="videoInput" type="file" accept="video/*" multiple />
-                  <span class="button-icon" aria-hidden="true">+</span>
-                  添加视频
-                </label>
-              </div>
-              <p class="panel-status" id="videoStatus" role="status"></p>
-              <div class="video-grid" id="videoGallery" aria-live="polite"></div>
-            </section>
           </div>
 
           <section class="panel notes-panel" id="notes">

@@ -11,7 +11,6 @@
   const DB_VERSION = 1;
   const STORES = {
     photos: "photos",
-    videos: "videos",
   };
   const NOTES_KEY = "lq-love-notes";
   const MEDIA_TABLE = "ml99_media";
@@ -23,7 +22,6 @@
     anonKey: "",
     authEmail: "",
     mediaBucket: "ml99-media",
-    maxVideoSizeMB: 45,
     imageMaxEdge: 1800,
     imageQuality: 0.82,
     thumbMaxEdge: 520,
@@ -39,16 +37,15 @@
     appShell: document.querySelector("#appShell"),
     daysTogether: document.querySelector("#daysTogether"),
     daysToMilestone: document.querySelector("#daysToMilestone"),
+    nextAnniversary: document.querySelector("#nextAnniversary"),
+    anniversaryLine: document.querySelector("#anniversaryLine"),
     milestoneLine: document.querySelector("#milestoneLine"),
     coverSlideImage: document.querySelector("#coverSlideImage"),
     coverSlideCount: document.querySelector("#coverSlideCount"),
     coverSlideTitle: document.querySelector("#coverSlideTitle"),
     photoInput: document.querySelector("#photoInput"),
-    videoInput: document.querySelector("#videoInput"),
     photoStatus: document.querySelector("#photoStatus"),
-    videoStatus: document.querySelector("#videoStatus"),
     photoGallery: document.querySelector("#photoGallery"),
-    videoGallery: document.querySelector("#videoGallery"),
     noteForm: document.querySelector("#noteForm"),
     noteType: document.querySelector("#noteType"),
     noteTo: document.querySelector("#noteTo"),
@@ -77,7 +74,6 @@
   let photoWallTimer = null;
   const objectUrls = {
     photos: new Set(),
-    videos: new Set(),
   };
 
   document.addEventListener("DOMContentLoaded", () => {
@@ -378,9 +374,6 @@
     elements.photoInput.addEventListener("change", () =>
       handleMediaInput(elements.photoInput, STORES.photos)
     );
-    elements.videoInput.addEventListener("change", () =>
-      handleMediaInput(elements.videoInput, STORES.videos)
-    );
     elements.noteForm.addEventListener("submit", handleNoteSubmit);
     elements.photoGallery.addEventListener("mouseenter", stopPhotoWallAutoplay);
     elements.photoGallery.addEventListener("mouseleave", startPhotoWallAutoplay);
@@ -403,14 +396,41 @@
     const targetDay = isMilestoneToday ? elapsed : nextMilestone;
     const targetDate = addDays(start, targetDay - 1);
     const daysLeft = isMilestoneToday ? 0 : nextMilestone - elapsed;
+    const anniversary = getNextAnniversary(today);
 
     elements.daysTogether.textContent = elapsed.toLocaleString("zh-CN");
     elements.daysToMilestone.textContent = daysLeft.toLocaleString("zh-CN");
+    elements.nextAnniversary.textContent = `第 ${anniversary.years.toLocaleString(
+      "zh-CN"
+    )} 周年`;
+    elements.anniversaryLine.textContent = anniversary.daysLeft
+      ? `${formatDate(anniversary.date)}，还有 ${anniversary.daysLeft.toLocaleString(
+          "zh-CN"
+        )} 天。`
+      : `今天就是第 ${anniversary.years.toLocaleString("zh-CN")} 周年。`;
     elements.milestoneLine.textContent = isMilestoneToday
       ? `今天就是第 ${targetDay.toLocaleString("zh-CN")} 天，整百天快乐。`
       : `第 ${targetDay.toLocaleString("zh-CN")} 天会在 ${formatDate(
           targetDate
         )} 到来。`;
+  }
+
+  function getNextAnniversary(today) {
+    const anniversaryDate = new Date(
+      today.getFullYear(),
+      START_DATE.getMonth(),
+      START_DATE.getDate()
+    );
+
+    if (anniversaryDate < today) {
+      anniversaryDate.setFullYear(anniversaryDate.getFullYear() + 1);
+    }
+
+    return {
+      date: anniversaryDate,
+      daysLeft: daysBetween(today, anniversaryDate),
+      years: Math.max(1, anniversaryDate.getFullYear() - START_DATE.getFullYear()),
+    };
   }
 
   function startOfDay(date) {
@@ -468,8 +488,7 @@
 
     const statusElement = getMediaStatusElement(storeName);
     const label = input.closest(".action-button");
-    const isPhotos = storeName === STORES.photos;
-    const actionText = isPhotos ? "正在压缩并保存照片" : "正在保存视频";
+    const actionText = "正在压缩并保存照片";
 
     input.disabled = true;
     label?.classList.add("is-busy");
@@ -503,11 +522,7 @@
       setStatus(statusElement, getMediaSaveError(storeName), true);
     }
 
-    if (storeName === STORES.photos) {
-      await renderPhotos();
-    } else {
-      await renderVideos();
-    }
+    await renderPhotos();
 
     window.setTimeout(() => {
       clearStatus(statusElement);
@@ -515,13 +530,10 @@
   }
 
   function getMediaStatusElement(storeName) {
-    return storeName === STORES.photos ? elements.photoStatus : elements.videoStatus;
+    return storeName === STORES.photos ? elements.photoStatus : null;
   }
 
   function getMediaSaveError(storeName) {
-    if (storeName === STORES.videos) {
-      return `保存失败，请确认视频不超过 ${getMaxVideoSizeMB()} MB。`;
-    }
     return "保存失败，请换一张浏览器可读取的照片。";
   }
 
@@ -529,7 +541,7 @@
     if (storeName === STORES.photos) {
       return addPhoto(file);
     }
-    return addVideo(file);
+    throw new Error("不支持的媒体类型。");
   }
 
   async function addPhoto(file) {
@@ -548,25 +560,6 @@
       originalSize: file.size,
       width: imageSet.width,
       height: imageSet.height,
-      createdAt: Date.now(),
-    });
-  }
-
-  async function addVideo(file) {
-    const maxSize = getMaxVideoSizeBytes();
-    if (file.size > maxSize) {
-      throw new Error(`视频超过 ${getMaxVideoSizeMB()} MB。`);
-    }
-
-    if (isCloudMode()) {
-      return addCloudVideo(file);
-    }
-
-    return addLocalMedia(STORES.videos, {
-      blob: file,
-      name: file.name || "未命名视频",
-      type: file.type,
-      size: file.size,
       createdAt: Date.now(),
     });
   }
@@ -700,37 +693,6 @@
     }
   }
 
-  async function addCloudVideo(file) {
-    ensureCloudClient();
-
-    const id = getUuid();
-    const extension = getFileExtension(file);
-    const videoPath = `videos/${id}.${extension}`;
-    const uploadedPaths = [];
-
-    try {
-      await uploadCloudFile(videoPath, file);
-      uploadedPaths.push(videoPath);
-
-      const { error } = await cloud.client.from(MEDIA_TABLE).insert({
-        id,
-        kind: "video",
-        title: file.name || "未命名视频",
-        storage_path: videoPath,
-        mime_type: file.type || "application/octet-stream",
-        byte_size: file.size,
-        original_byte_size: file.size,
-      });
-
-      if (error) {
-        throw error;
-      }
-    } catch (error) {
-      await removeCloudFiles(uploadedPaths);
-      throw error;
-    }
-  }
-
   async function uploadCloudFile(path, file) {
     const { error } = await cloud.client.storage
       .from(cloud.config.mediaBucket)
@@ -754,7 +716,7 @@
 
   async function getCloudMedia(storeName) {
     ensureCloudClient();
-    const kind = storeName === STORES.photos ? "photo" : "video";
+    const kind = "photo";
     const { data, error } = await cloud.client
       .from(MEDIA_TABLE)
       .select("*")
@@ -873,7 +835,7 @@
   }
 
   async function renderAll() {
-    await Promise.all([renderPhotos(), renderVideos(), renderNotes()]);
+    await Promise.all([renderPhotos(), renderNotes()]);
   }
 
   async function renderPhotos() {
@@ -1041,60 +1003,6 @@
     if (coverTimer) {
       window.clearInterval(coverTimer);
       coverTimer = null;
-    }
-  }
-
-  async function renderVideos() {
-    clearObjectUrls(STORES.videos);
-    elements.videoGallery.innerHTML = "";
-
-    try {
-      const videos = (await getAllMedia(STORES.videos)).map((video) =>
-        attachDisplayUrls(STORES.videos, video)
-      );
-
-      if (!videos.length) {
-        elements.videoGallery.appendChild(
-          createEmptyState("上传一段短视频，给这段日常留一点声音和光。")
-        );
-        return;
-      }
-
-      videos.forEach((video) => {
-        const card = document.createElement("article");
-        card.className = "media-card video-card";
-        card.innerHTML = `
-          <video src="${video.url}" controls preload="metadata"></video>
-          <div class="media-meta">
-            <span class="media-title">
-              <strong>${escapeHtml(video.name)}</strong>
-              <small>${formatFileSize(video.size)} · ${formatTime(
-                video.createdAt
-              )}</small>
-            </span>
-            <div class="media-actions">
-              <button class="action-button danger delete-media" type="button">删除</button>
-            </div>
-          </div>
-        `;
-        card.querySelector(".delete-media").addEventListener("click", async () => {
-          await handleDeleteMedia({
-            storeName: STORES.videos,
-            item: video,
-            label: "视频",
-            statusElement: elements.videoStatus,
-            renderAfterDelete: renderVideos,
-            button: card.querySelector(".delete-media"),
-          });
-        });
-        elements.videoGallery.appendChild(card);
-      });
-    } catch (error) {
-      console.error(error);
-      elements.videoGallery.appendChild(
-        createEmptyState("视频暂时加载失败，请检查云端配置。")
-      );
-      setStatus(elements.videoStatus, "视频加载失败，请检查 Supabase 设置。", true);
     }
   }
 
@@ -1393,31 +1301,6 @@
     }
     element.textContent = "";
     element.classList.remove("is-error");
-  }
-
-  function getMaxVideoSizeMB() {
-    const configured = Number(cloud.config.maxVideoSizeMB);
-    return Math.max(1, Math.min(50, Number.isFinite(configured) ? configured : 45));
-  }
-
-  function getMaxVideoSizeBytes() {
-    return getMaxVideoSizeMB() * 1024 * 1024;
-  }
-
-  function getFileExtension(file) {
-    const nameExtension = (file.name || "").split(".").pop();
-    if (nameExtension && /^[a-z0-9]{2,5}$/i.test(nameExtension)) {
-      return nameExtension.toLowerCase();
-    }
-
-    const mimeExtensions = {
-      "video/mp4": "mp4",
-      "video/quicktime": "mov",
-      "video/webm": "webm",
-      "video/x-m4v": "m4v",
-    };
-
-    return mimeExtensions[file.type] || "mp4";
   }
 
   function ensureCloudClient() {

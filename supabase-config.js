@@ -5,7 +5,6 @@ window.ML99_SUPABASE_CONFIG = {
   anonKey: "sb_publishable_c-WyzWmRzp5AhaAy9TpKfw_0L-kGK8D",
   authEmail: "ml99@lixinyu66666.github.io",
   mediaBucket: "ml99-media",
-  maxVideoSizeMB: 45,
   imageMaxEdge: 1800,
   imageQuality: 0.82,
   thumbMaxEdge: 520,

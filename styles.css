@@ -12,6 +12,7 @@
   --coral: #d98076;
   --coral-soft: #ffe2e8;
   --shadow: 0 24px 64px rgba(128, 59, 80, 0.15);
+  --art-font: "Kaiti SC", STKaiti, KaiTi, "Songti SC", Georgia, serif;
   --radius: 8px;
 }
 
@@ -30,9 +31,9 @@ body {
   background:
     linear-gradient(
       180deg,
-      rgba(255, 247, 250, 0.78) 0%,
-      rgba(255, 237, 243, 0.88) 54%,
-      rgba(255, 250, 251, 0.94) 100%
+      rgba(255, 247, 250, 0.58) 0%,
+      rgba(255, 237, 243, 0.7) 54%,
+      rgba(255, 250, 251, 0.84) 100%
     ),
     var(--page-bg-image) center 44% / cover fixed no-repeat,
     var(--bg);
@@ -64,8 +65,7 @@ a {
   text-decoration: none;
 }
 
-img,
-video {
+img {
   display: block;
   max-width: 100%;
 }
@@ -80,9 +80,9 @@ video {
   background:
     linear-gradient(
       135deg,
-      rgba(255, 247, 250, 0.72) 0%,
-      rgba(255, 233, 241, 0.88) 56%,
-      rgba(255, 248, 244, 0.86) 100%
+      rgba(255, 247, 250, 0.52) 0%,
+      rgba(255, 233, 241, 0.68) 56%,
+      rgba(255, 248, 244, 0.78) 100%
     ),
     var(--page-bg-image) center 44% / cover fixed no-repeat,
     var(--bg);
@@ -360,6 +360,25 @@ h3 {
   font-size: 0.88rem;
 }
 
+.anniversary-card {
+  display: flex;
+  grid-column: 1 / -1;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.anniversary-metric {
+  flex: 0 0 auto;
+  font-size: clamp(1.8rem, 3.4vw, 2.8rem);
+  white-space: nowrap;
+}
+
+.anniversary-card .label {
+  margin-top: 0;
+  text-align: right;
+}
+
 .milestone-line {
   margin: 18px 0 0;
   color: var(--muted);
@@ -502,12 +521,6 @@ input[type="file"] {
   background: color-mix(in srgb, var(--green) 58%, #fff);
 }
 
-.video-grid {
-  display: grid;
-  gap: 14px;
-  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
-}
-
 .media-card {
   position: relative;
   overflow: hidden;
@@ -539,13 +552,6 @@ input[type="file"] {
   height: 100%;
   border-radius: calc(var(--radius) - 2px);
   object-fit: contain;
-}
-
-.video-card video {
-  width: 100%;
-  aspect-ratio: 16 / 10;
-  background: #101712;
-  object-fit: cover;
 }
 
 .media-meta {
@@ -674,6 +680,9 @@ textarea {
 
 .note-top h3 {
   overflow-wrap: anywhere;
+  font-family: var(--art-font);
+  font-size: 1.16rem;
+  font-weight: 700;
 }
 
 .note-chip {
@@ -691,6 +700,9 @@ textarea {
 .note-card p {
   margin-bottom: 0;
   color: #4e3740;
+  font-family: var(--art-font);
+  font-size: 1.08rem;
+  line-height: 1.78;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -819,8 +831,13 @@ textarea {
     font-size: 2.05rem;
   }
 
-  .video-grid {
-    grid-template-columns: 1fr;
+  .anniversary-card {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .anniversary-card .label {
+    text-align: left;
   }
 
   .gallery-grid {
