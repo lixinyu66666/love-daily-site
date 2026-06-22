@@ -229,7 +229,8 @@ body.is-locked .app-shell {
 
 .cover-panel {
   position: relative;
-  min-height: 360px;
+  align-self: start;
+  aspect-ratio: 1672 / 941;
   overflow: hidden;
 }
 
@@ -237,15 +238,14 @@ body.is-locked .app-shell {
   position: relative;
   width: 100%;
   height: 100%;
-  min-height: 360px;
   background: var(--surface-soft);
 }
 
 .cover-slide-image {
   width: 100%;
   height: 100%;
-  min-height: 360px;
-  object-fit: cover;
+  object-fit: contain;
+  object-position: center;
   opacity: 0;
   transform: scale(1.015);
   transition:
@@ -361,22 +361,45 @@ h3 {
 }
 
 .anniversary-card {
-  display: flex;
   grid-column: 1 / -1;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 16px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+  background:
+    linear-gradient(90deg, rgba(255, 250, 251, 0.92), rgba(255, 232, 239, 0.68)),
+    rgba(255, 241, 245, 0.74);
+}
+
+.anniversary-kicker {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  border: 1px solid rgba(183, 94, 119, 0.22);
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: rgba(255, 250, 251, 0.76);
+  color: var(--green-dark);
+  font-size: 0.76rem;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.anniversary-detail {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
 }
 
 .anniversary-metric {
-  flex: 0 0 auto;
-  font-size: clamp(1.8rem, 3.4vw, 2.8rem);
+  font-size: clamp(1.3rem, 2.4vw, 1.85rem);
   white-space: nowrap;
 }
 
 .anniversary-card .label {
   margin-top: 0;
-  text-align: right;
+  font-size: 0.86rem;
+  text-align: left;
 }
 
 .milestone-line {
@@ -388,12 +411,17 @@ h3 {
   display: grid;
   grid-template-columns: minmax(0, 1.28fr) minmax(320px, 0.72fr);
   gap: 20px;
-  align-items: start;
+  align-items: stretch;
 }
 
 .media-column {
   display: grid;
   gap: 20px;
+}
+
+.media-column > .panel,
+.notes-panel {
+  min-height: 100%;
 }
 
 .panel {
@@ -785,12 +813,6 @@ textarea {
   .workspace-grid {
     grid-template-columns: 1fr;
   }
-
-  .cover-panel,
-  .cover-slideshow,
-  .cover-slide-image {
-    min-height: 280px;
-  }
 }
 
 @media (max-width: 640px) {
@@ -833,8 +855,8 @@ textarea {
   }
 
   .anniversary-card {
+    grid-template-columns: 1fr;
     align-items: flex-start;
-    flex-direction: column;
   }
 
   .anniversary-card .label {

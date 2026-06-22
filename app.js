@@ -417,7 +417,7 @@
       "zh-CN"
     )} 周年`;
     elements.anniversaryLine.textContent = anniversary.daysLeft
-      ? `${formatDate(anniversary.date)}，还有 ${anniversary.daysLeft.toLocaleString(
+      ? `${formatDate(anniversary.date)} · 还有 ${anniversary.daysLeft.toLocaleString(
           "zh-CN"
         )} 天。`
       : `今天就是第 ${anniversary.years.toLocaleString("zh-CN")} 周年。`;
