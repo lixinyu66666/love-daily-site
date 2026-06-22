@@ -30,12 +30,12 @@ body {
   min-height: 100vh;
   background:
     linear-gradient(
-      180deg,
-      rgba(255, 247, 250, 0.58) 0%,
-      rgba(255, 237, 243, 0.7) 54%,
-      rgba(255, 250, 251, 0.84) 100%
+      90deg,
+      rgba(255, 246, 249, 0.96) 0%,
+      rgba(255, 240, 245, 0.88) 52%,
+      rgba(255, 238, 244, 0.38) 100%
     ),
-    var(--page-bg-image) center 44% / cover fixed no-repeat,
+    var(--page-bg-image) right center / cover fixed no-repeat,
     var(--bg);
   color: var(--ink);
   font-family:
@@ -79,12 +79,12 @@ img {
   padding: 24px;
   background:
     linear-gradient(
-      135deg,
-      rgba(255, 247, 250, 0.52) 0%,
-      rgba(255, 233, 241, 0.68) 56%,
-      rgba(255, 248, 244, 0.78) 100%
+      90deg,
+      rgba(255, 246, 249, 0.72) 0%,
+      rgba(255, 238, 244, 0.58) 48%,
+      rgba(255, 229, 238, 0.26) 100%
     ),
-    var(--page-bg-image) center 44% / cover fixed no-repeat,
+    var(--page-bg-image) center center / cover fixed no-repeat,
     var(--bg);
 }
 
@@ -797,7 +797,8 @@ textarea {
   body,
   .auth-gate {
     background-attachment: scroll;
-    background-position: center top;
+    background-position: center top, center top, center top;
+    background-size: auto, cover, auto;
   }
 
   .app-shell {

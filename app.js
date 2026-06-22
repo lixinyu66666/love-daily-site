@@ -7,6 +7,7 @@
   const AUTH_LOCK_UNTIL_KEY = "ml99-auth-lock-until";
   const AUTH_MAX_FAILS = 5;
   const AUTH_LOCK_MS = 60 * 1000;
+  const PASSWORD_LENGTH = 6;
   const DB_NAME = "lq-love-daily";
   const DB_VERSION = 1;
   const STORES = {
@@ -91,13 +92,10 @@
 
   async function init() {
     await setupCloudClient();
+    clearStoredAuthSession();
     bindAuthEvents();
 
-    if (await isAuthenticated()) {
-      await unlockSite();
-      return;
-    }
-
+    elements.authPassword.value = "";
     elements.authPassword.focus();
   }
 
@@ -124,7 +122,7 @@
 
     cloud.client = globalThis.supabase.createClient(config.url, config.anonKey, {
       auth: {
-        persistSession: true,
+        persistSession: false,
         autoRefreshToken: true,
         detectSessionInUrl: false,
       },
@@ -190,10 +188,16 @@
       return;
     }
 
-    const password = elements.authPassword.value;
+    const password = elements.authPassword.value.trim();
     if (!password) {
       elements.authError.textContent = "请输入密码。";
       elements.authPassword.focus();
+      return;
+    }
+
+    if (!/^\d+$/.test(password) || password.length !== PASSWORD_LENGTH) {
+      elements.authError.textContent = `请输入完整 ${PASSWORD_LENGTH} 位密码。`;
+      elements.authPassword.select();
       return;
     }
 
@@ -201,10 +205,10 @@
     elements.authError.textContent = "";
 
     try {
+      await signInWithLocalPassword(password);
+
       if (isCloudMode()) {
         await signInWithCloudPassword(password);
-      } else {
-        await signInWithLocalPassword(password);
       }
 
       clearAuthFailures();
@@ -244,7 +248,6 @@
     if (inputHash !== LOCAL_PASSWORD_HASH) {
       throw new Error("密码不正确。");
     }
-    sessionStorage.setItem(LOCAL_AUTH_KEY, "true");
   }
 
   async function sha256(value) {
@@ -255,24 +258,32 @@
       .join("");
   }
 
-  async function isAuthenticated() {
-    if (isCloudMode()) {
-      if (!cloud.client) {
-        return false;
-      }
+  function clearStoredAuthSession() {
+    try {
+      sessionStorage.removeItem(LOCAL_AUTH_KEY);
+    } catch (error) {
+      // Ignore storage failures; the form still requires the password.
+    }
 
-      const { data, error } = await cloud.client.auth.getSession();
-      if (error) {
-        console.error(error);
-        return false;
-      }
-      return Boolean(data.session);
+    const projectRef = getSupabaseProjectRef(cloud.config.url);
+    if (!projectRef) {
+      return;
     }
 
     try {
-      return sessionStorage.getItem(LOCAL_AUTH_KEY) === "true";
+      Object.keys(localStorage)
+        .filter((key) => key === `sb-${projectRef}-auth-token`)
+        .forEach((key) => localStorage.removeItem(key));
     } catch (error) {
-      return false;
+      // Ignore storage failures; Supabase is also configured not to persist sessions.
+    }
+  }
+
+  function getSupabaseProjectRef(url) {
+    try {
+      return new URL(url).hostname.split(".")[0];
+    } catch (error) {
+      return "";
     }
   }
 
@@ -324,7 +335,9 @@
       if (cloud.initError) {
         return cloud.initError;
       }
-      return "密码不正确，或云端暂时无法验证。";
+      if (error.message && error.message !== "密码不正确。") {
+        return "密码正确，但云端暂时无法登录，请稍后刷新再试。";
+      }
     }
 
     return error.message || "密码不正确。";

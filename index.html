@@ -19,8 +19,13 @@
             id="authPassword"
             type="password"
             inputmode="numeric"
-            autocomplete="current-password"
-            placeholder="请输入密码"
+            autocomplete="off"
+            autocapitalize="off"
+            maxlength="6"
+            pattern="[0-9]*"
+            data-1p-ignore
+            data-lpignore="true"
+            placeholder="请输入 6 位密码"
           />
         </label>
         <p class="auth-error" id="authError" role="alert"></p>
