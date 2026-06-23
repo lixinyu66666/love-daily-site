@@ -726,8 +726,9 @@ textarea {
   padding: 3px 9px;
   background: var(--coral-soft);
   color: #934a5e;
+  font-family: var(--art-font);
   font-size: 0.76rem;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .note-card p {
