@@ -31,11 +31,11 @@ body {
   background:
     linear-gradient(
       90deg,
-      rgba(255, 246, 249, 0.96) 0%,
-      rgba(255, 240, 245, 0.88) 52%,
-      rgba(255, 238, 244, 0.38) 100%
+      rgba(255, 246, 249, 0.64) 0%,
+      rgba(255, 240, 245, 0.54) 52%,
+      rgba(255, 238, 244, 0.36) 100%
     ),
-    var(--page-bg-image) right center / cover fixed no-repeat,
+    var(--page-bg-image) center center / cover fixed no-repeat,
     var(--bg);
   color: var(--ink);
   font-family:
@@ -80,9 +80,9 @@ img {
   background:
     linear-gradient(
       90deg,
-      rgba(255, 246, 249, 0.72) 0%,
-      rgba(255, 238, 244, 0.58) 48%,
-      rgba(255, 229, 238, 0.26) 100%
+      rgba(255, 246, 249, 0.56) 0%,
+      rgba(255, 238, 244, 0.44) 48%,
+      rgba(255, 229, 238, 0.24) 100%
     ),
     var(--page-bg-image) center center / cover fixed no-repeat,
     var(--bg);
