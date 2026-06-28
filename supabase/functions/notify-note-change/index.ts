@@ -55,13 +55,14 @@ Deno.serve(async (request) => {
     }
 
     const siteUrl = readSecret("ML99_SITE_URL") || DEFAULT_SITE_URL;
-    const content = buildMessage(action, note, previousNote, siteUrl);
+    const content = buildMessageHtml(action, note, previousNote, siteUrl);
     const summary = buildSummary(action, note);
     const wxPayload: Record<string, unknown> = {
       appToken,
       content,
       summary,
-      contentType: 1,
+      contentType: 2,
+      verifyPayType: 0,
       url: siteUrl,
     };
 
@@ -125,31 +126,36 @@ function sanitizeNote(value: unknown): NotePayload | null {
   };
 }
 
-function buildMessage(
+function buildMessageHtml(
   action: NoteAction,
   note: NotePayload,
   previousNote: NotePayload | null,
   siteUrl: string
 ) {
   const lines = [
-    "ML99 日志有更新",
-    "",
-    `操作：${getActionLabel(action)}`,
-    `类型：${note.type || "日志"}`,
-    `写给：${note.to || "我们"}`,
-    `标题：${note.title || "没有标题的小记录"}`,
+    "<h3>ML99 日志有更新</h3>",
+    `操作：${escapeHtml(getActionLabel(action))}`,
+    `类型：${escapeHtml(note.type || "日志")}`,
+    `写给：${escapeHtml(note.to || "我们")}`,
+    `标题：${escapeHtml(note.title || "没有标题的小记录")}`,
   ];
 
   if (action === "updated" && previousNote) {
-    lines.push(`原标题：${previousNote.title || "没有标题的小记录"}`);
+    lines.push(
+      `原标题：${escapeHtml(previousNote.title || "没有标题的小记录")}`
+    );
   }
 
   if (note.body) {
-    lines.push("", "内容：", note.body);
+    lines.push("", "<strong>内容：</strong>", escapeHtml(note.body));
   }
 
-  lines.push("", `时间：${formatShanghaiTime(new Date())}`, `打开网站：${siteUrl}`);
-  return lines.join("\n");
+  lines.push(
+    "",
+    `时间：${escapeHtml(formatShanghaiTime(new Date()))}`,
+    `<a href="${escapeHtml(siteUrl)}">打开 ML99</a>`
+  );
+  return lines.join("<br>");
 }
 
 function buildSummary(action: NoteAction, note: NotePayload) {
@@ -188,6 +194,15 @@ function limitText(value: unknown, maxLength: number) {
   return trimmed.length > maxLength
     ? `${trimmed.slice(0, Math.max(0, maxLength - 1))}…`
     : trimmed;
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 function readSecret(name: string) {
