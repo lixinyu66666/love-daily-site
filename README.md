@@ -8,6 +8,7 @@
 - 上传前自动压缩照片，并生成缩略图
 - 添加、删除、播放视频，默认单个视频不超过 45 MB
 - 添加、删除日志和留言
+- 修改日志和留言，并在新增、修改、删除后发送微信提醒
 - 自动计算从 2022 年 12 月 10 日开始的恋爱天数
 - 自动显示距离下一个整百天纪念日还有几天
 - 配置 Supabase 后使用 Supabase Auth 验证密码，数据库和文件通过 RLS 限制为登录后访问
@@ -66,3 +67,43 @@ https://lixinyu66666.github.io/love-daily-site/
 GitHub 仓库设置中进入 `Settings -> Pages`，发布源选择 `Deploy from a branch`，分支选择 `main`，目录选择 `/root`。
 
 注意：GitHub Pages 仍然只是静态托管。真正的持久化由 Supabase 提供；如果 [supabase-config.js](supabase-config.js) 没有填写完整，网站会退回本地预览模式。
+
+## WxPusher 微信提醒
+
+日志和留言发生新增、修改、删除时，前端会调用 Supabase Edge Function：
+
+```text
+notify-note-change
+```
+
+这个函数会读取 Supabase Secret 里的 WxPusher 配置，再把提醒发到指定微信。不要把 WxPusher 的 `appToken` 或 `UID` 写进前端文件。
+
+### 需要准备
+
+1. 打开 WxPusher 后台，新建一个应用，复制应用的 `appToken`。
+2. 让接收提醒的人扫码关注这个应用，复制这个人的 `UID`。
+3. 如果要提醒多个人，`UID` 用英文逗号分隔。
+
+### 设置 Supabase Secret
+
+在项目目录运行：
+
+```bash
+supabase secrets set WXPUSHER_APP_TOKEN=你的_appToken
+supabase secrets set WXPUSHER_UIDS=接收人的_UID
+supabase secrets set ML99_SITE_URL=https://lixinyu66666.github.io/love-daily-site/
+```
+
+如果使用 WxPusher topic，也可以设置：
+
+```bash
+supabase secrets set WXPUSHER_TOPIC_IDS=123,456
+```
+
+### 部署通知函数
+
+```bash
+supabase functions deploy notify-note-change
+```
+
+部署完成后，在网站里新增、修改或删除日志，会自动触发微信提醒。如果 Secret 没配置完整，日志操作仍然会保存成功，但页面会提示“微信提醒未发送”。

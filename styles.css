@@ -503,6 +503,12 @@ h3 {
   color: #a44b62;
 }
 
+.action-button.secondary {
+  border-color: rgba(183, 94, 119, 0.3);
+  background: rgba(255, 250, 251, 0.78);
+  color: var(--green-dark);
+}
+
 .action-button:hover,
 .icon-button:hover {
   transform: translateY(-1px);
@@ -676,6 +682,18 @@ textarea {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+}
+
+.note-form-buttons,
+.note-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.is-hidden {
+  display: none !important;
 }
 
 .form-status {

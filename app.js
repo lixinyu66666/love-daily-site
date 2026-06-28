@@ -16,6 +16,7 @@
   const NOTES_KEY = "lq-love-notes";
   const MEDIA_TABLE = "ml99_media";
   const NOTES_TABLE = "ml99_notes";
+  const NOTE_NOTIFY_FUNCTION = "notify-note-change";
   const SIGNED_URL_TTL_SECONDS = 12 * 60 * 60;
   const SUPABASE_SDK_URL = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2";
   const DEFAULT_CLOUD_CONFIG = {
@@ -54,6 +55,8 @@
     noteBody: document.querySelector("#noteBody"),
     noteList: document.querySelector("#noteList"),
     formStatus: document.querySelector("#formStatus"),
+    noteSubmitLabel: document.querySelector("#noteSubmitLabel"),
+    noteCancelEdit: document.querySelector("#noteCancelEdit"),
     lightbox: document.querySelector("#lightbox"),
     lightboxImage: document.querySelector("#lightboxImage"),
     lightboxCaption: document.querySelector("#lightboxCaption"),
@@ -73,6 +76,7 @@
   let coverTimer = null;
   let coverIndex = 0;
   let photoWallTimer = null;
+  let editingNote = null;
   const objectUrls = {
     photos: new Set(),
   };
@@ -388,6 +392,7 @@
       handleMediaInput(elements.photoInput, STORES.photos)
     );
     elements.noteForm.addEventListener("submit", handleNoteSubmit);
+    elements.noteCancelEdit.addEventListener("click", resetNoteFormState);
     elements.photoGallery.addEventListener("mouseenter", stopPhotoWallAutoplay);
     elements.photoGallery.addEventListener("mouseleave", startPhotoWallAutoplay);
     elements.photoGallery.addEventListener("focusin", stopPhotoWallAutoplay);
@@ -1142,16 +1147,28 @@
     setStatus(elements.formStatus, "正在保存...");
 
     try {
-      await addNote({
-        id: getId(),
+      const noteInput = {
+        id: editingNote?.id || getId(),
         type: elements.noteType.value,
         to: elements.noteTo.value,
         title: title || "没有标题的小记录",
         body,
-        createdAt: Date.now(),
-      });
-      elements.noteForm.reset();
-      setStatus(elements.formStatus, "已保存。");
+        createdAt: editingNote?.createdAt || Date.now(),
+      };
+      const action = editingNote ? "updated" : "created";
+      const previousNote = editingNote ? { ...editingNote } : null;
+      const savedNote = editingNote
+        ? await updateNote(noteInput)
+        : await addNote(noteInput);
+      const notification = await notifyNoteChange(action, savedNote, previousNote);
+      resetNoteFormState();
+      setStatus(
+        elements.formStatus,
+        notification.ok
+          ? getNoteSuccessMessage(action)
+          : `${getNoteSuccessMessage(action)}微信提醒未发送。`,
+        !notification.ok
+      );
       await renderNotes();
       window.setTimeout(() => {
         clearStatus(elements.formStatus);
@@ -1165,23 +1182,127 @@
   async function addNote(note) {
     if (isCloudMode()) {
       ensureCloudClient();
-      const { error } = await cloud.client.from(NOTES_TABLE).insert({
-        id: getUuid(),
-        note_type: note.type,
-        note_to: note.to,
-        title: note.title,
-        body: note.body,
-      });
+      const id = getUuid();
+      const { data, error } = await cloud.client
+        .from(NOTES_TABLE)
+        .insert({
+          id,
+          note_type: note.type,
+          note_to: note.to,
+          title: note.title,
+          body: note.body,
+        })
+        .select("*")
+        .single();
 
       if (error) {
         throw error;
       }
-      return;
+      return mapCloudNoteRow(data);
     }
 
     const notes = getLocalNotes();
     notes.unshift(note);
     saveLocalNotes(notes);
+    return note;
+  }
+
+  async function updateNote(note) {
+    if (isCloudMode()) {
+      ensureCloudClient();
+      const { data, error } = await cloud.client
+        .from(NOTES_TABLE)
+        .update({
+          note_type: note.type,
+          note_to: note.to,
+          title: note.title,
+          body: note.body,
+        })
+        .eq("id", note.id)
+        .select("*")
+        .single();
+
+      if (error) {
+        throw error;
+      }
+      return mapCloudNoteRow(data);
+    }
+
+    const notes = getLocalNotes().map((item) =>
+      item.id === note.id ? { ...item, ...note } : item
+    );
+    saveLocalNotes(notes);
+    return notes.find((item) => item.id === note.id) || note;
+  }
+
+  function mapCloudNoteRow(note) {
+    return {
+      id: note.id,
+      type: note.note_type,
+      to: note.note_to,
+      title: note.title,
+      body: note.body,
+      createdAt: note.created_at,
+    };
+  }
+
+  async function notifyNoteChange(action, note, previousNote = null) {
+    if (!isCloudMode()) {
+      return { ok: true, skipped: true };
+    }
+
+    try {
+      ensureCloudClient();
+      const { data, error } = await cloud.client.functions.invoke(
+        NOTE_NOTIFY_FUNCTION,
+        {
+          body: {
+            action,
+            note,
+            previousNote,
+          },
+        }
+      );
+
+      if (error) {
+        throw error;
+      }
+
+      return data && data.ok === false ? data : { ok: true, data };
+    } catch (error) {
+      console.warn("微信提醒发送失败", error);
+      return { ok: false, error };
+    }
+  }
+
+  function getNoteSuccessMessage(action) {
+    if (action === "updated") {
+      return "已更新。";
+    }
+    if (action === "deleted") {
+      return "已删除。";
+    }
+    return "已保存。";
+  }
+
+  function resetNoteFormState() {
+    editingNote = null;
+    elements.noteForm.reset();
+    elements.noteSubmitLabel.textContent = "保存";
+    elements.noteCancelEdit.classList.add("is-hidden");
+  }
+
+  function startEditNote(note) {
+    editingNote = { ...note };
+    elements.noteType.value = note.type;
+    elements.noteTo.value = note.to;
+    elements.noteTitle.value = note.title;
+    elements.noteBody.value = note.body;
+    elements.noteSubmitLabel.textContent = "更新";
+    elements.noteCancelEdit.classList.remove("is-hidden");
+    setStatus(elements.formStatus, "正在修改这条日志。");
+    elements.noteForm.scrollIntoView({ behavior: "smooth", block: "start" });
+    elements.noteBody.focus();
   }
 
   async function getNotes() {
@@ -1196,14 +1317,7 @@
         throw error;
       }
 
-      return (data || []).map((note) => ({
-        id: note.id,
-        type: note.note_type,
-        to: note.note_to,
-        title: note.title,
-        body: note.body,
-        createdAt: note.created_at,
-      }));
+      return (data || []).map((note) => mapCloudNoteRow(note));
     }
 
     return getLocalNotes();
@@ -1258,13 +1372,19 @@
               )}</span>
               <h3>${escapeHtml(note.title)}</h3>
             </div>
-            <button class="action-button danger" type="button">删除</button>
+            <div class="note-actions">
+              <button class="action-button secondary edit-note" type="button">修改</button>
+              <button class="action-button danger delete-note" type="button">删除</button>
+            </div>
           </div>
           <p>${escapeHtml(note.body)}</p>
           <div class="note-meta">${formatTime(note.createdAt)}</div>
         `;
-        card.querySelector("button").addEventListener("click", async () => {
-          await handleDeleteNote(note, card.querySelector("button"));
+        card.querySelector(".edit-note").addEventListener("click", () => {
+          startEditNote(note);
+        });
+        card.querySelector(".delete-note").addEventListener("click", async () => {
+          await handleDeleteNote(note, card.querySelector(".delete-note"));
         });
         elements.noteList.appendChild(card);
       });
@@ -1289,7 +1409,15 @@
 
     try {
       await deleteNote(note.id);
-      setStatus(elements.formStatus, "已删除。");
+      const notification = await notifyNoteChange("deleted", note);
+      if (editingNote?.id === note.id) {
+        resetNoteFormState();
+      }
+      setStatus(
+        elements.formStatus,
+        notification.ok ? "已删除。" : "已删除。微信提醒未发送。",
+        !notification.ok
+      );
       await renderNotes();
       window.setTimeout(() => clearStatus(elements.formStatus), 1600);
     } catch (error) {

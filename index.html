@@ -155,10 +155,13 @@
               </label>
               <div class="form-actions">
                 <span class="form-status" id="formStatus" role="status"></span>
-                <button class="action-button primary" type="submit">
-                  <span class="button-icon" aria-hidden="true">✓</span>
-                  保存
-                </button>
+                <span class="note-form-buttons">
+                  <button class="action-button secondary is-hidden" id="noteCancelEdit" type="button">取消修改</button>
+                  <button class="action-button primary" type="submit">
+                    <span class="button-icon" aria-hidden="true">✓</span>
+                    <span id="noteSubmitLabel">保存</span>
+                  </button>
+                </span>
               </div>
             </form>
 
